@@ -160,25 +160,28 @@
     position: relative;
     display: inline-flex;
     align-items: center;
-    margin-left: 8px;
+    margin-left: 6px;
     z-index: 10000;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   .gnb-trigger-btn {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     background: linear-gradient(135deg, #7c3aed, #4f46e5);
     color: #ffffff;
     border: none;
-    padding: 5px 12px;
-    border-radius: 16px;
+    padding: 4px 10px;
+    border-radius: 14px;
     font-weight: 800;
-    font-size: 12px;
+    font-size: 11px;
+    line-height: 1.4;
     cursor: pointer;
     box-shadow: 0 2px 6px rgba(124, 58, 237, 0.35);
     transition: all 0.2s ease;
+    white-space: nowrap;
   }
 
   .gnb-trigger-btn:hover {

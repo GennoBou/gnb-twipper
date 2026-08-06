@@ -24,30 +24,30 @@ let currentStreamers: StreamInfo[] = [];
 let customStyleElement: HTMLStyleElement | null = null;
 let customScriptElement: HTMLScriptElement | null = null;
 
-// Find Twitch Nav Search Container
-function findTwitchSearchTarget(): HTMLElement | null {
-  // Selector candidates for Twitch Header Search Bar area
-  const selectors = [
-    'div[data-a-target="nav-search-input"]',
-    'div[data-a-target="nav-search-box"]',
-    'div[data-a-target="search-box"]',
-    'div.navigation-link[data-a-target="nav-search"]',
-    'form[data-a-target="nav-search-input"]',
-    'nav div[class*="search"]',
-  ];
+// Find Twitch Nav Search Container and ensure flex row layout
+function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElement } | null {
+  const searchBox = document.querySelector('div[data-a-target="nav-search-box"]') as HTMLElement
+    || document.querySelector('div[data-a-target="nav-search-input"]') as HTMLElement;
 
-  for (const selector of selectors) {
-    const el = document.querySelector(selector);
-    if (el && el.parentElement) {
-      return el.parentElement as HTMLElement;
-    }
+  if (searchBox && searchBox.parentElement) {
+    const container = searchBox.parentElement as HTMLElement;
+    // Force horizontal flex layout on search container so button stays on the right
+    container.style.setProperty('display', 'flex', 'important');
+    container.style.setProperty('flex-direction', 'row', 'important');
+    container.style.setProperty('align-items', 'center', 'important');
+    return { container, searchBox };
   }
 
   // Fallback: Left/Center area of top navbar
   const topNav = document.querySelector('nav[data-a-target="top-nav"]') || document.querySelector('nav');
   if (topNav) {
-    const centerDiv = topNav.querySelector('div[class*="center"]') || topNav.children[1] || topNav;
-    return centerDiv as HTMLElement;
+    const centerDiv = (topNav.querySelector('div[class*="center"]') || topNav.children[1] || topNav) as HTMLElement;
+    if (centerDiv) {
+      centerDiv.style.setProperty('display', 'flex', 'important');
+      centerDiv.style.setProperty('flex-direction', 'row', 'important');
+      centerDiv.style.setProperty('align-items', 'center', 'important');
+      return { container: centerDiv, searchBox: centerDiv };
+    }
   }
 
   return null;
@@ -56,8 +56,8 @@ function findTwitchSearchTarget(): HTMLElement | null {
 function initNavTrigger() {
   if (document.getElementById('gnb-twview-trigger-root')) return;
 
-  const targetContainer = findTwitchSearchTarget();
-  if (!targetContainer) {
+  const target = findTwitchSearchTarget();
+  if (!target) {
     return;
   }
 
@@ -65,9 +65,15 @@ function initNavTrigger() {
   wrapper.id = 'gnb-twview-trigger-root';
   wrapper.style.display = 'inline-flex';
   wrapper.style.alignItems = 'center';
+  wrapper.style.marginLeft = '8px';
+  wrapper.style.flexShrink = '0';
 
-  // Append right next to the search box
-  targetContainer.appendChild(wrapper);
+  // Insert right after search box element
+  if (target.searchBox && target.searchBox.nextSibling) {
+    target.container.insertBefore(wrapper, target.searchBox.nextSibling);
+  } else {
+    target.container.appendChild(wrapper);
+  }
 
   // Extract current channel from URL path
   const pathParts = window.location.pathname.split('/').filter(Boolean);
