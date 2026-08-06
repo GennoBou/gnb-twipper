@@ -35,4 +35,5 @@ export type ExtensionMessage =
   | { type: 'SKIP_NEXT' }
   | { type: 'SELECT_STREAMER'; channel: string }
   | { type: 'GET_AUTO_STATE' }
-  | { type: 'OPEN_OPTIONS' };
+  | { type: 'OPEN_OPTIONS' }
+  | { type: 'EXECUTE_CUSTOM_JS'; code: string };

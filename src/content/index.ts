@@ -132,17 +132,12 @@ function applySettings(newSettings: AppSettings) {
     customStyleElement.textContent = '';
   }
 
-  // Custom JS Injection
-  if (newSettings.customJsEnabled && newSettings.customJs) {
-    try {
-      if (customScriptElement) customScriptElement.remove();
-      customScriptElement = document.createElement('script');
-      customScriptElement.id = 'gnb-twview-custom-js';
-      customScriptElement.textContent = newSettings.customJs;
-      document.head.appendChild(customScriptElement);
-    } catch (err) {
-      console.error('[gnb-twview] Custom JS injection error:', err);
-    }
+  // Custom JS Injection via Background (bypasses page CSP inline script violation)
+  if (newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
+    chrome.runtime.sendMessage({
+      type: 'EXECUTE_CUSTOM_JS',
+      code: newSettings.customJs,
+    });
   }
 }
 

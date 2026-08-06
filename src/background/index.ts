@@ -293,6 +293,28 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         sendResponse({ success: true });
         break;
 
+      case 'EXECUTE_CUSTOM_JS':
+        if (_sender.tab && _sender.tab.id && message.code) {
+          chrome.scripting.executeScript({
+            target: { tabId: _sender.tab.id },
+            world: 'MAIN',
+            func: (codeToExec: string) => {
+              try {
+                // Execute code in page context
+                const scriptFun = new Function(codeToExec);
+                scriptFun();
+              } catch (e) {
+                console.error('[gnb-twview] Custom JS execution error:', e);
+              }
+            },
+            args: [message.code],
+          }).catch((err) => {
+            console.error('[gnb-twview] chrome.scripting.executeScript error:', err);
+          });
+        }
+        sendResponse({ success: true });
+        break;
+
       default:
         break;
     }
