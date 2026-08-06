@@ -12,5 +12,6 @@ export default defineConfig({
   build: {
     emptyOutDir: true,
     outDir: 'dist',
+    modulePreload: false, // Fix "cross-world extension resource mismatch" warning in Chrome Extensions
   },
 });
