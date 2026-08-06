@@ -1,8 +1,8 @@
 import { mount } from 'svelte';
-import OverlayUI from './OverlayUI.svelte';
+import GnbNavTrigger from './GnbNavTrigger.svelte';
 import type { AppSettings, AutoState, StreamInfo } from '../types';
 
-let overlayComponent: any = null;
+let triggerComponent: any = null;
 let currentSettings: AppSettings = {
   rotationTimeMinutes: 3,
   autoStartOnLogin: true,
@@ -24,25 +24,60 @@ let currentStreamers: StreamInfo[] = [];
 let customStyleElement: HTMLStyleElement | null = null;
 let customScriptElement: HTMLScriptElement | null = null;
 
-function initOverlay() {
-  if (document.getElementById('gnb-twview-root')) return;
+// Find Twitch Nav Search Container
+function findTwitchSearchTarget(): HTMLElement | null {
+  // Selector candidates for Twitch Header Search Bar area
+  const selectors = [
+    'div[data-a-target="nav-search-input"]',
+    'div[data-a-target="nav-search-box"]',
+    'div[data-a-target="search-box"]',
+    'div.navigation-link[data-a-target="nav-search"]',
+    'form[data-a-target="nav-search-input"]',
+    'nav div[class*="search"]',
+  ];
 
-  // Shift Twitch body down by 40px to fit top navbar
-  document.documentElement.style.marginTop = '40px';
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el && el.parentElement) {
+      return el.parentElement as HTMLElement;
+    }
+  }
 
-  const container = document.createElement('div');
-  container.id = 'gnb-twview-root';
-  document.body.appendChild(container);
+  // Fallback: Left/Center area of top navbar
+  const topNav = document.querySelector('nav[data-a-target="top-nav"]') || document.querySelector('nav');
+  if (topNav) {
+    const centerDiv = topNav.querySelector('div[class*="center"]') || topNav.children[1] || topNav;
+    return centerDiv as HTMLElement;
+  }
 
-  // Extract current channel from URL path (e.g. twitch.tv/fps_shaka)
+  return null;
+}
+
+function initNavTrigger() {
+  if (document.getElementById('gnb-twview-trigger-root')) return;
+
+  const targetContainer = findTwitchSearchTarget();
+  if (!targetContainer) {
+    return;
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.id = 'gnb-twview-trigger-root';
+  wrapper.style.display = 'inline-flex';
+  wrapper.style.alignItems = 'center';
+
+  // Append right next to the search box
+  targetContainer.appendChild(wrapper);
+
+  // Extract current channel from URL path
   const pathParts = window.location.pathname.split('/').filter(Boolean);
   if (pathParts.length > 0) {
     currentAutoState.currentChannel = pathParts[0];
   }
 
-  // Mount Svelte 5 Overlay UI
-  overlayComponent = mount(OverlayUI, {
-    target: container,
+  // Mount Svelte 5 Trigger Component
+  triggerComponent = mount(GnbNavTrigger, {
+    target: wrapper,
     props: {
       autoState: currentAutoState,
       settings: currentSettings,
@@ -61,7 +96,7 @@ function initOverlay() {
         chrome.runtime.sendMessage({ type: 'SELECT_STREAMER', channel });
       },
       onOpenOptions: () => {
-        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+        chrome.runtime.openOptionsPage ? chrome.runtime.openOptionsPage() : window.open(chrome.runtime.getURL('src/options/index.html'));
       },
     },
   });
@@ -114,9 +149,21 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-// Initialize Overlay on page load
+// Observe DOM changes to re-inject trigger button if Twitch SPA replaces header
+const observer = new MutationObserver(() => {
+  if (!document.getElementById('gnb-twview-trigger-root')) {
+    initNavTrigger();
+  }
+});
+
+observer.observe(document.body, {
+  childList: true,
+  subtree: true,
+});
+
+// Initialize on page load
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initOverlay);
+  document.addEventListener('DOMContentLoaded', initNavTrigger);
 } else {
-  initOverlay();
+  initNavTrigger();
 }
