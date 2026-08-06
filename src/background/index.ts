@@ -30,21 +30,47 @@ chrome.storage.local.get(['settings'], (result) => {
   }
 });
 
+// Helper to get Twitch auth-token cookie
+async function getTwitchAuthToken(): Promise<string | null> {
+  return new Promise((resolve) => {
+    chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'auth-token' }, (cookie) => {
+      if (cookie && cookie.value) {
+        resolve(cookie.value);
+      } else {
+        // Fallback check on .twitch.tv domain
+        chrome.cookies.get({ url: 'https://gql.twitch.tv', name: 'auth-token' }, (cookie2) => {
+          resolve(cookie2?.value || null);
+        });
+      }
+    });
+  });
+}
+
 // Fetch followed live channels via Twitch GQL API
 async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
   try {
-    // Standard Twitch Client-ID for web frontend
+    const authToken = await getTwitchAuthToken();
+    console.log('[gnb-twview] Twitch Auth Token found:', !!authToken);
+
     const CLIENT_ID = 'kimne78q3ncx5we6bcd59myst66826';
-    
-    // GQL Query for followed live streams
-    const query = [
+    const headers: Record<string, string> = {
+      'Client-ID': CLIENT_ID,
+      'Content-Type': 'application/json',
+    };
+
+    if (authToken) {
+      headers['Authorization'] = `OAuth ${authToken}`;
+    }
+
+    // Try GQL Query for followed live streams
+    const bodyPayload = [
       {
-        operationName: 'FollowingLiveStreams',
+        operationName: 'SideNavSection_FollowedChannels',
         variables: {
           limit: 100,
         },
         query: `
-          query FollowingLiveStreams($limit: Int) {
+          query SideNavSection_FollowedChannels($limit: Int) {
             currentUser {
               id
               followedLiveUsers(first: $limit) {
@@ -73,38 +99,40 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
 
     const response = await fetch('https://gql.twitch.tv/gql', {
       method: 'POST',
-      headers: {
-        'Client-ID': CLIENT_ID,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(query),
-      credentials: 'include', // Include Twitch auth-token cookies
+      headers,
+      body: JSON.stringify(bodyPayload),
     });
 
     if (!response.ok) {
-      console.warn('[gnb-twview] GQL response not OK:', response.status);
+      console.warn('[gnb-twview] GQL response HTTP error:', response.status);
       return [];
     }
 
     const data = await response.json();
+    console.log('[gnb-twview] GQL raw response:', data);
+
     const edges = data[0]?.data?.currentUser?.followedLiveUsers?.edges || [];
 
-    const streams: StreamInfo[] = edges.map((edge: any) => {
-      const node = edge.node;
-      return {
-        user_login: node.login,
-        user_name: node.displayName,
-        profile_image_url: node.profileImageURL,
-        title: node.stream?.title || '',
-        game_name: node.stream?.game?.name || '',
-        viewer_count: node.stream?.viewerCount || 0,
-      };
-    });
+    const streams: StreamInfo[] = edges
+      .map((edge: any) => {
+        const node = edge?.node;
+        if (!node || !node.stream) return null; // Filter out non-live users
+        return {
+          user_login: node.login,
+          user_name: node.displayName,
+          profile_image_url: node.profileImageURL,
+          title: node.stream.title || '',
+          game_name: node.stream.game?.name || '',
+          viewer_count: node.stream.viewerCount || 0,
+        };
+      })
+      .filter((s: StreamInfo | null): s is StreamInfo => s !== null);
 
+    console.log('[gnb-twview] Parsed live streamers count:', streams.length);
     liveStreamers = streams;
     return streams;
   } catch (err) {
-    console.error('[gnb-twview] Failed to fetch followed live channels:', err);
+    console.error('[gnb-twview] Error fetching followed live channels:', err);
     return [];
   }
 }
@@ -126,7 +154,6 @@ function startAutoMode(initialChannel?: string) {
     if (autoState.timeRemainingSeconds > 0) {
       autoState.timeRemainingSeconds -= 1;
     } else {
-      // Time expired -> Rotate to next channel
       rotateToNextChannel();
     }
 
@@ -162,7 +189,6 @@ async function rotateToNextChannel() {
     return;
   }
 
-  // Find next index
   const currentIndex = liveStreamers.findIndex(s => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase());
   const nextIndex = (currentIndex + 1) % liveStreamers.length;
   const nextStreamer = liveStreamers[nextIndex];
@@ -170,7 +196,6 @@ async function rotateToNextChannel() {
   autoState.currentChannel = nextStreamer.user_login;
   autoState.timeRemainingSeconds = settings.rotationTimeMinutes * 60;
 
-  // Navigate active Twitch tab to next channel
   navigateToChannel(nextStreamer.user_login);
   broadcastState();
 }
@@ -208,7 +233,7 @@ function broadcastState() {
   }).catch(() => {});
 }
 
-// Listen for messages from Content Script or Popup
+// Message listener
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   (async () => {
     switch (message.type) {
@@ -254,6 +279,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         break;
 
       case 'GET_AUTO_STATE':
+        // Fetch fresh streamers if list is empty
+        if (liveStreamers.length === 0) {
+          await fetchFollowedLiveChannels();
+        }
         sendResponse({ autoState, settings, liveStreamers });
         break;
 
@@ -268,10 +297,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         break;
     }
   })();
-  return true; // async response
+  return true;
 });
 
-// Periodically refresh live streamers list every 2 minutes
+// Refresh live streamers every 2 minutes
 chrome.alarms.create('refreshLiveStreamers', { periodInMinutes: 2 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'refreshLiveStreamers') {
