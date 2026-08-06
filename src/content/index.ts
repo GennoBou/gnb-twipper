@@ -102,7 +102,7 @@ function initNavTrigger() {
         chrome.runtime.sendMessage({ type: 'SELECT_STREAMER', channel });
       },
       onOpenOptions: () => {
-        chrome.runtime.openOptionsPage ? chrome.runtime.openOptionsPage() : window.open(chrome.runtime.getURL('src/options/index.html'));
+        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
       },
     },
   });

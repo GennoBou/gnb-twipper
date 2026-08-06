@@ -57,11 +57,7 @@
   }
 
   function openOptions() {
-    if (chrome.runtime.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    } else {
-      window.open(chrome.runtime.getURL('src/options/index.html'));
-    }
+    chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
   }
 
   function openTwitch() {

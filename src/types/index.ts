@@ -34,4 +34,5 @@ export type ExtensionMessage =
   | { type: 'STOP_AUTO_MODE' }
   | { type: 'SKIP_NEXT' }
   | { type: 'SELECT_STREAMER'; channel: string }
-  | { type: 'GET_AUTO_STATE' };
+  | { type: 'GET_AUTO_STATE' }
+  | { type: 'OPEN_OPTIONS' };

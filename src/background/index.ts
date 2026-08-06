@@ -257,6 +257,13 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         sendResponse({ autoState, settings, liveStreamers });
         break;
 
+      case 'OPEN_OPTIONS':
+        if (chrome.runtime.openOptionsPage) {
+          chrome.runtime.openOptionsPage();
+        }
+        sendResponse({ success: true });
+        break;
+
       default:
         break;
     }
