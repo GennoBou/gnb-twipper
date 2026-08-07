@@ -4,9 +4,9 @@
   "version": "0.2.0",
   "description": "Twitch minimalist auto-rotation viewer extension with custom CSS/JS injection.",
   "icons": {
-    "16": "twview.svg",
-    "48": "twview.svg",
-    "128": "twview.svg"
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
   },
   "permissions": [
     "storage",
@@ -34,9 +34,9 @@
     "default_popup": "src/popup/index.html",
     "default_title": "gnb-twview",
     "default_icon": {
-      "16": "twview.svg",
-      "48": "twview.svg",
-      "128": "twview.svg"
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
     }
   },
   "options_ui": {
@@ -45,7 +45,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["twview.svg", "assets/*"],
+      "resources": ["twview.svg", "icons/*", "assets/*"],
       "matches": ["https://www.twitch.tv/*"]
     }
   ]
