@@ -1,5 +1,5 @@
 {
-  "name": "gnb-twview",
+  "name": "gnb-twipper",
   "version": "0.2.0",
   "description": "Twitch minimalist browser & auto-rotation Chrome Extension (Manifest V3)",
   "type": "module",

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { AppSettings, AutoState, StreamInfo } from '../types';
-  import { Play, Square, SkipForward, Settings, Radio, ExternalLink } from '@lucide/svelte';
+  import { Play, Square, SkipForward, Settings, Radio, ExternalLink, ChevronDown, ChevronRight } from '@lucide/svelte';
 
   let autoState = $state<AutoState>({
     isActive: false,
@@ -21,6 +21,11 @@
   });
 
   let liveStreamers = $state<StreamInfo[]>([]);
+  let isStreamersOpen = $state(false); // Default hidden (collapsed accordion)
+
+  function toggleStreamers() {
+    isStreamersOpen = !isStreamersOpen;
+  }
 
   onMount(() => {
     chrome.runtime.sendMessage({ type: 'GET_AUTO_STATE' }, (res) => {
@@ -29,6 +34,11 @@
         if (res.settings) settings = res.settings;
         if (res.liveStreamers) liveStreamers = res.liveStreamers;
       }
+    });
+
+    // Force request fresh streamer fetch/scrape
+    chrome.runtime.sendMessage({ type: 'GET_LIVE_STREAMERS' }, (res) => {
+      if (res && res.liveStreamers) liveStreamers = res.liveStreamers;
     });
 
     chrome.runtime.onMessage.addListener((msg) => {
@@ -111,41 +121,52 @@
     </div>
   {/if}
 
-  <!-- Streamers List -->
+  <!-- Streamers List Accordion -->
   <section class="streamers-section">
-    <div class="section-title">
-      <span class="icon-live"><Radio size={14} /></span>
-      <span>ライブ中のフォロー配信者 ({liveStreamers.length}名)</span>
-    </div>
+    <button class="section-title-btn" onclick={toggleStreamers}>
+      <div class="title-group">
+        <span class="icon-live"><Radio size={14} /></span>
+        <span>ライブ中のフォロー配信者 ({liveStreamers.length}名)</span>
+      </div>
+      <span class="chevron">
+        {#if isStreamersOpen}
+          <ChevronDown size={15} />
+        {:else}
+          <ChevronRight size={15} />
+        {/if}
+      </span>
+    </button>
 
-    <div class="streamers-list">
-      {#if liveStreamers.length === 0}
-        <div class="empty-msg">
-          ライブ中のチャンネルがありません。<br />
-          <button class="btn-link" onclick={openTwitch}>
-            Twitch を開く <ExternalLink size={12} />
-          </button>
-        </div>
-      {:else}
-        {#each liveStreamers as streamer}
-          <button
-            class="streamer-item {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}"
-            onclick={() => selectStreamer(streamer.user_login)}
-          >
-            {#if streamer.profile_image_url}
-              <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
-            {/if}
-            <div class="streamer-info">
-              <div class="name">{streamer.user_name}</div>
-              <div class="game">{streamer.game_name || streamer.title}</div>
-            </div>
-            {#if streamer.viewer_count}
-              <div class="viewers">👥 {streamer.viewer_count.toLocaleString()}</div>
-            {/if}
-          </button>
-        {/each}
-      {/if}
-    </div>
+    {#if isStreamersOpen}
+      <div class="streamers-list">
+        {#if liveStreamers.length === 0}
+          <div class="empty-msg">
+            ライブ中のチャンネルがありません。<br />
+            <button class="btn-link" onclick={openTwitch}>
+              Twitch を開く <ExternalLink size={12} />
+            </button>
+          </div>
+        {:else}
+          {#each liveStreamers as streamer}
+            <button
+              class="streamer-item {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}"
+              onclick={() => selectStreamer(streamer.user_login)}
+            >
+              {#if streamer.profile_image_url}
+                <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
+              {/if}
+              <div class="streamer-info">
+                <div class="name">{streamer.user_name}</div>
+                <div class="game">{streamer.game_name || streamer.title}</div>
+              </div>
+              {#if streamer.viewer_count}
+                <div class="viewers">👥 {streamer.viewer_count.toLocaleString()}</div>
+              {/if}
+            </button>
+          {/each}
+        {/if}
+      </div>
+    {/if}
   </section>
 </div>
 
@@ -247,13 +268,37 @@
     margin-top: 8px;
   }
 
-  .section-title {
+  .section-title-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #cbd5e1;
+    background: #1e293b;
+    border: 1px solid #334155;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .section-title-btn:hover {
+    background: #334155;
+    border-color: #7c3aed;
+  }
+
+  .title-group {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 12px;
+  }
+
+  .chevron {
+    display: inline-flex;
+    align-items: center;
     color: #94a3b8;
-    margin-bottom: 8px;
   }
 
   .icon-live {

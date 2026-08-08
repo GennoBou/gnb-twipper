@@ -21,12 +21,20 @@ let autoState: AutoState = {
 
 let countdownTimer: number | null = null;
 
-// Initialize settings from storage
+// Initialize settings from storage and handle autoStartOnLogin
 chrome.storage.local.get(['settings'], (result) => {
   if (result.settings) {
     settings = { ...DEFAULT_SETTINGS, ...result.settings };
   } else {
     chrome.storage.local.set({ settings });
+  }
+
+  // Auto-start auto mode if autoStartOnLogin is enabled and not already running
+  if (settings.autoStartOnLogin && !autoState.isActive) {
+    console.log('[gnb-twipper] autoStartOnLogin is enabled. Starting Auto Mode on extension init.');
+    setTimeout(() => {
+      startAutoMode();
+    }, 1000);
   }
 });
 
@@ -35,12 +43,37 @@ async function getTwitchAuthToken(): Promise<string | null> {
   return new Promise((resolve) => {
     chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'auth-token' }, (cookie) => {
       if (cookie && cookie.value) {
+        console.log('[gnb-twipper] Auth-token found via www.twitch.tv URL');
         resolve(cookie.value);
-      } else {
-        // Fallback check on .twitch.tv domain
-        chrome.cookies.get({ url: 'https://gql.twitch.tv', name: 'auth-token' }, (cookie2) => {
-          resolve(cookie2?.value || null);
+        return;
+      }
+      chrome.cookies.get({ url: 'https://gql.twitch.tv', name: 'auth-token' }, (cookie2) => {
+        if (cookie2 && cookie2.value) {
+          console.log('[gnb-twipper] Auth-token found via gql.twitch.tv URL');
+          resolve(cookie2.value);
+          return;
+        }
+        chrome.cookies.getAll({ name: 'auth-token' }, (cookies) => {
+          const match = cookies.find((c) => c.domain.includes('twitch.tv'));
+          if (match && match.value) {
+            console.log('[gnb-twipper] Auth-token found via cookies.getAll search for twitch.tv');
+            resolve(match.value);
+          } else {
+            console.warn('[gnb-twipper] Auth-token cookie NOT found');
+            resolve(null);
+          }
         });
+      });
+    });
+  });
+}
+
+// Request active Twitch tabs to scrape live streamers from DOM
+function requestDomScrapeFromTabs() {
+  chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
+    tabs.forEach((tab) => {
+      if (tab.id) {
+        chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE_LIVE_STREAMERS_REQUEST' }).catch(() => {});
       }
     });
   });
@@ -50,9 +83,9 @@ async function getTwitchAuthToken(): Promise<string | null> {
 async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
   try {
     const authToken = await getTwitchAuthToken();
-    console.log('[gnb-twview] Twitch Auth Token found:', !!authToken);
+    console.log('[gnb-twipper] Twitch Auth Token present:', !!authToken, authToken ? `(length: ${authToken.length})` : '');
 
-    const CLIENT_ID = 'kimne78q3ncx5we6bcd59myst66826';
+    const CLIENT_ID = 'kimne78kx3ncx6brogo4h6w166b418';
     const headers: Record<string, string> = {
       'Client-ID': CLIENT_ID,
       'Content-Type': 'application/json',
@@ -62,18 +95,15 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
       headers['Authorization'] = `OAuth ${authToken}`;
     }
 
-    // Try GQL Query for followed live streams
+    // Verified working Twitch GQL Query for followed live streams
     const bodyPayload = [
       {
-        operationName: 'SideNavSection_FollowedChannels',
-        variables: {
-          limit: 100,
-        },
+        operationName: 'GnbFollowsLiveQuery',
         query: `
-          query SideNavSection_FollowedChannels($limit: Int) {
+          query GnbFollowsLiveQuery {
             currentUser {
               id
-              followedLiveUsers(first: $limit) {
+              follows(first: 100) {
                 edges {
                   node {
                     id
@@ -83,7 +113,7 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
                     stream {
                       id
                       title
-                      viewerCount
+                      viewersCount
                       game {
                         name
                       }
@@ -104,36 +134,57 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     });
 
     if (!response.ok) {
-      console.warn('[gnb-twview] GQL response HTTP error:', response.status);
-      return [];
+      console.warn('[gnb-twipper] GQL response HTTP error status:', response.status);
+      requestDomScrapeFromTabs();
+      return liveStreamers;
     }
 
     const data = await response.json();
-    console.log('[gnb-twview] GQL raw response:', data);
+    console.log('[gnb-twipper] GQL raw response structure:', data);
 
-    const edges = data[0]?.data?.currentUser?.followedLiveUsers?.edges || [];
+    if (data && Array.isArray(data) && data[0]?.errors) {
+      console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
+    }
 
-    const streams: StreamInfo[] = edges
-      .map((edge: any) => {
-        const node = edge?.node;
-        if (!node || !node.stream) return null; // Filter out non-live users
-        return {
+    const currentUser = data?.[0]?.data?.currentUser;
+    if (!currentUser) {
+      console.warn('[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered. Requesting DOM scrape fallback.');
+      requestDomScrapeFromTabs();
+      return liveStreamers;
+    }
+
+    const edges = currentUser.follows?.edges || [];
+    const fetchedStreamers: StreamInfo[] = [];
+
+    edges.forEach((edge: any) => {
+      const node = edge?.node;
+      const stream = node?.stream;
+      if (node && stream) {
+        fetchedStreamers.push({
           user_login: node.login,
-          user_name: node.displayName,
-          profile_image_url: node.profileImageURL,
-          title: node.stream.title || '',
-          game_name: node.stream.game?.name || '',
-          viewer_count: node.stream.viewerCount || 0,
-        };
-      })
-      .filter((s: StreamInfo | null): s is StreamInfo => s !== null);
+          user_name: node.displayName || node.login,
+          title: stream.title || '',
+          game_name: stream.game?.name || '',
+          profile_image_url: node.profileImageURL || '',
+          viewer_count: stream.viewersCount || 0,
+        });
+      }
+    });
 
-    console.log('[gnb-twview] Parsed live streamers count:', streams.length);
-    liveStreamers = streams;
-    return streams;
+    console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
+
+    if (fetchedStreamers.length > 0) {
+      liveStreamers = fetchedStreamers;
+    } else {
+      console.log('[gnb-twipper] GQL returned 0 live streamers. Requesting DOM scrape fallback to double check.');
+      requestDomScrapeFromTabs();
+    }
+
+    return liveStreamers;
   } catch (err) {
-    console.error('[gnb-twview] Error fetching followed live channels:', err);
-    return [];
+    console.error('[gnb-twipper] Error fetching followed live channels via GQL:', err);
+    requestDomScrapeFromTabs();
+    return liveStreamers;
   }
 }
 
@@ -184,7 +235,7 @@ async function rotateToNextChannel() {
   }
 
   if (liveStreamers.length === 0) {
-    console.log('[gnb-twview] No live streamers found to rotate.');
+    console.log('[gnb-twipper] No live streamers found to rotate.');
     stopAutoMode();
     return;
   }
@@ -293,6 +344,15 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         sendResponse({ success: true });
         break;
 
+      case 'UPDATE_STREAMERS_FROM_DOM':
+        if (message.streamers && message.streamers.length >= 0) {
+          console.log('[gnb-twipper] Received followed live streamers from DOM scrape:', message.streamers.length);
+          liveStreamers = message.streamers;
+          broadcastState();
+        }
+        sendResponse({ success: true, count: liveStreamers.length });
+        break;
+
       case 'EXECUTE_CUSTOM_JS':
         if (_sender.tab && _sender.tab.id && message.code) {
           chrome.scripting.executeScript({
@@ -304,12 +364,12 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
                 const scriptFun = new Function(codeToExec);
                 scriptFun();
               } catch (e) {
-                console.error('[gnb-twview] Custom JS execution error:', e);
+                console.error('[gnb-twipper] Custom JS execution error:', e);
               }
             },
             args: [message.code],
           }).catch((err) => {
-            console.error('[gnb-twview] chrome.scripting.executeScript error:', err);
+            console.error('[gnb-twipper] chrome.scripting.executeScript error:', err);
           });
         }
         sendResponse({ success: true });
@@ -327,6 +387,16 @@ chrome.alarms.create('refreshLiveStreamers', { periodInMinutes: 2 });
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'refreshLiveStreamers') {
     fetchFollowedLiveChannels().then(() => broadcastState());
+  }
+});
+
+// Auto-start auto mode when Twitch tab is opened/loaded if autoStartOnLogin is enabled
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' && tab.url && tab.url.includes('twitch.tv')) {
+    if (settings.autoStartOnLogin && !autoState.isActive) {
+      console.log('[gnb-twipper] Twitch tab loaded/updated. Auto-starting Auto Mode via autoStartOnLogin.');
+      startAutoMode();
+    }
   }
 });
 

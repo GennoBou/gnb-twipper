@@ -1,24 +1,36 @@
-[English Edition](./README.md)
+> [!IMPORTANT]
+> **お知らせ**: 本リポジトリ（`gnb-twview`）は読み取り専用（アーカイブ）となりました。プロジェクトはプログラム名を新たに **[gnb-twipper](https://github.com/GennoBou/gnb-twipper)** に変更し、Chrome 拡張機能版として移行・再スタートしました。
 
-# gnb-twview
+# gnb-twipper (v0.2.0)
 
-Twitchを効率的に視聴するために設計された、Chrome 拡張機能 (Manifest V3) の自動巡回ビューアです。
+Twitchを効率的に視聴するために設計された、Chrome 拡張機能 (Manifest V3 + Svelte 5) の自動巡回ビューアです。
 
 ## 概要
 
-`gnb-twview` は、Twitchのライブ配信を効率的に巡回・観賞するために開発された Chrome 拡張機能です。一般的なブラウザ拡張機能として動作するため、Twitch のログイン状態やセキュリティ検証を意識することなく、軽量かつ安全に動作します。
+`gnb-twipper` は、Twitchのライブ配信を効率的に巡回・観賞するために開発された Chrome 拡張機能です。既存ブラウザのログインセッションをそのまま活用し、Twitch のセキュリティ保護 (Twitch Integrity) を侵害することなく、API 直接取得と DOM スクレイピングの自動二重化（ハイブリッド構造）により高速かつ超高精度に動作します。
 
 ### 主な機能
-- **オートモード**: ライブ配信中のフォロー中配信者を一定時間ごとに自動で切り替えて巡回します。
-- **スキップボタン**: キュー内の次の配信者へ即座に切り替えます。
-- **インジェクト UI**: Twitch Web 画面上部に統合されたミニマルな操作バー（AUTO開始/停止、タイマー、配信者切り替えドロップダウン）。
-- **カスタムインジェクション (CSS/JS)**: Twitch ページ上にユーザー独自の CSS スタイルおよび JavaScript ロジックを動的に自動埋め込み。
-- **多言語 GUI**: 日本語および英語に対応。設定画面から動的に切り替え可能。
+
+- **オート巡回モード**: ライブ配信中のフォロー中配信者を指定時間（初期値3分）ごとに自動的に切り替えて順次巡回します。
+- **GQL API & DOM ハイブリッド取得**:
+  - 通常時は Service Worker 経由で Twitch GQL API から高速・高精度にライブ配信者リストを直接取得。
+  - 万が一のAPI制限時や未ログイン時も Content Script 側から自動的に DOM フォールバックがバックアップ動作。
+- **ヘッダー統合インジェクト UI (`GnbNavTrigger`)**:
+  - Twitch 画面上部検索バー横にシームレスに埋め込まれるミニマルな操作ナビ。
+  - アコーディオン形式の配信者一覧、タイマーバッジ、AUTO 開始/停止、スキップボタン、詳細設定へのクイックアクセス。
+- **起動時オート巡回自動連動 (`autoStartOnLogin`)**:
+  - Twitch を開いた際やブラウザ起動時に、手動でボタンを押すことなく全自動でオート巡回を開始。
+- **カスタムインジェクション (CSS/JS)**:
+  - Twitch Web ページ上にユーザー独自の CSS スタイルおよび JavaScript ロジックを動的に埋め込み（設定画面にてぬるっと生えるアニメーション付きエディタ）。
+- **CDP リモートデバッグ統合**:
+  - Chrome DevTools Protocol (CDP) / MCP `chrome-devtools` 経由での実機ブラウザデバッグに完全対応。
 
 ## 技術スタック
-- **標準規格**: Chrome Extension Manifest V3
+
+- **拡張機能規格**: Chrome Extension Manifest V3
 - **ビルドツール**: Vite + [@crxjs/vite-plugin](https://crxjs.dev/vite-plugin)
-- **フロントエンド**: Svelte v5 + TypeScript
+- **フロントエンド UI**: Svelte 5 (Runes / `$state` / `$effect`) + TypeScript
+- **アイコン**: [@lucide/svelte](https://lucide.dev/)
 
 ## インストール手順
 
@@ -29,8 +41,10 @@ Twitchを効率的に視聴するために設計された、Chrome 拡張機能 
    ```
 2. Google Chrome を開き、`chrome://extensions/` にアクセスします。
 3. 画面右上の **「デベロッパーモード」** を ON にします。
-4. **「パッケージ化されていない拡張機能を読み込む」** を選択し、生成された `dist/` フォルダを指定します。
-5. [Twitch](https://www.twitch.tv) を開くと、操作ナビゲーションバーが表示されます。
+4. **「パッケージ化されていない拡張機能を読み込む」** を選択し、本プロジェクトの `dist` フォルダを指定します。
+5. [Twitch](https://www.twitch.tv) を開くと、上部ナビゲーションバーに `GNB` コントロールボタンが表示されます。
 
 ## 旧バージョンについて
-- Wails 3 (WebView2) ベースの旧デスクトップ版コードは、`legacy-wails3` Git ブランチにて保管されています。
+
+- Wails 3 (Go + WebView2) ベースの旧デスクトップアプリ版コードは、歴史的経緯として `legacy-wails3` Git ブランチおよび `/docs/local` の設計ログに保管されています。
+

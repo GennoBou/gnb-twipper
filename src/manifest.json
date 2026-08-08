@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "gnb-twview - Twitch Viewer & Auto Rotation",
+  "name": "gnb-twipper - Twitch Stream Hopper & Auto Rotation",
   "version": "0.2.0",
   "description": "Twitch minimalist auto-rotation viewer extension with custom CSS/JS injection.",
   "icons": {
@@ -32,7 +32,7 @@
   ],
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_title": "gnb-twview",
+    "default_title": "gnb-twipper",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

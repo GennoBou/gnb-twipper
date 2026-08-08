@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { slide } from 'svelte/transition';
   import type { AppSettings } from '../types';
   import { Settings, Save, Check, Code, Globe, Clock, Play } from '@lucide/svelte';
 
@@ -84,18 +85,6 @@
       </div>
     </section>
 
-    <!-- Language Settings -->
-    <section class="card">
-      <h2><Globe size={18} /> 言語設定</h2>
-      <div class="form-group">
-        <label for="language">表示言語 (Language):</label>
-        <select id="language" bind:value={settings.language} class="select-input">
-          <option value="ja">日本語 (Japanese)</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-    </section>
-
     <!-- Custom Injections -->
     <section class="card">
       <h2><Code size={18} /> カスタムインジェクション (CSS / JS)</h2>
@@ -109,11 +98,15 @@
             カスタム CSS を有効化
           </label>
         </div>
-        <textarea
-          bind:value={settings.customCss}
-          placeholder={placeholderCssText}
-          class="code-editor"
-        ></textarea>
+        {#if settings.customCssEnabled}
+          <div transition:slide={{ duration: 220 }}>
+            <textarea
+              bind:value={settings.customCss}
+              placeholder={placeholderCssText}
+              class="code-editor"
+            ></textarea>
+          </div>
+        {/if}
       </div>
 
       <!-- Custom JS -->
@@ -124,11 +117,27 @@
             カスタム JS を有効化
           </label>
         </div>
-        <textarea
-          bind:value={settings.customJs}
-          placeholder={placeholderJsText}
-          class="code-editor"
-        ></textarea>
+        {#if settings.customJsEnabled}
+          <div transition:slide={{ duration: 220 }}>
+            <textarea
+              bind:value={settings.customJs}
+              placeholder={placeholderJsText}
+              class="code-editor"
+            ></textarea>
+          </div>
+        {/if}
+      </div>
+    </section>
+
+    <!-- Language Settings (Moved to bottom as lower priority) -->
+    <section class="card">
+      <h2><Globe size={18} /> 言語設定</h2>
+      <div class="form-group">
+        <label for="language">表示言語 (Language):</label>
+        <select id="language" bind:value={settings.language} class="select-input">
+          <option value="ja">日本語 (Japanese)</option>
+          <option value="en">English</option>
+        </select>
       </div>
     </section>
   </main>

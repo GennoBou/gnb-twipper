@@ -36,4 +36,6 @@ export type ExtensionMessage =
   | { type: 'SELECT_STREAMER'; channel: string }
   | { type: 'GET_AUTO_STATE' }
   | { type: 'OPEN_OPTIONS' }
-  | { type: 'EXECUTE_CUSTOM_JS'; code: string };
+  | { type: 'EXECUTE_CUSTOM_JS'; code: string }
+  | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] };
+

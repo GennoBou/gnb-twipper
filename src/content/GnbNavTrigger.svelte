@@ -1,31 +1,68 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import type { AppSettings, AutoState, StreamInfo } from '../types';
-  import { Play, Square, SkipForward, Settings, User, Radio, ExternalLink } from '@lucide/svelte';
+  import { Play, Square, SkipForward, Settings, Radio, ChevronDown, ChevronRight } from '@lucide/svelte';
 
-  let {
-    autoState = $bindable<AutoState>({
-      isActive: false,
-      timeRemainingSeconds: 0,
-      totalDurationSeconds: 180,
-      currentChannel: '',
-    }),
-    settings = $bindable<AppSettings>({
-      rotationTimeMinutes: 3,
-      autoStartOnLogin: true,
-      language: 'ja',
-      customCss: '',
-      customJs: '',
-      customCssEnabled: true,
-      customJsEnabled: true,
-    }),
-    liveStreamers = $bindable<StreamInfo[]>([]),
-    onToggleAuto = () => {},
-    onSkip = () => {},
-    onSelectChannel = (_channel: string) => {},
-    onOpenOptions = () => {},
-  } = $props();
+  let props = $props<{
+    autoState?: AutoState;
+    settings?: AppSettings;
+    liveStreamers?: StreamInfo[];
+    onToggleAuto?: () => void;
+    onSkip?: () => void;
+    onSelectChannel?: (channel: string) => void;
+    onOpenOptions?: () => void;
+  }>();
 
+  let autoState = $state<AutoState>({
+    isActive: false,
+    timeRemainingSeconds: 0,
+    totalDurationSeconds: 180,
+    currentChannel: '',
+  });
+
+  let settings = $state<AppSettings>({
+    rotationTimeMinutes: 3,
+    autoStartOnLogin: true,
+    language: 'ja',
+    customCss: '',
+    customJs: '',
+    customCssEnabled: true,
+    customJsEnabled: true,
+  });
+
+  let liveStreamers = $state<StreamInfo[]>([]);
   let isOpen = $state(false);
+  let isStreamersOpen = $state(false); // Default hidden (collapsed accordion)
+
+  function toggleStreamersAccordion(e: MouseEvent) {
+    e.stopPropagation();
+    isStreamersOpen = !isStreamersOpen;
+  }
+
+  $effect(() => {
+    if (props.autoState) autoState = props.autoState;
+  });
+  $effect(() => {
+    if (props.settings) settings = props.settings;
+  });
+  $effect(() => {
+    if (props.liveStreamers) liveStreamers = props.liveStreamers;
+  });
+
+  onMount(() => {
+    const messageListener = (msg: any) => {
+      if (msg.type === 'AUTO_STATE_UPDATE') {
+        if (msg.autoState) autoState = msg.autoState;
+        if (msg.settings) settings = msg.settings;
+        if (msg.liveStreamers) liveStreamers = msg.liveStreamers;
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(messageListener);
+    return () => {
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
+  });
 
   let formattedTime = $derived(() => {
     const mins = Math.floor(autoState.timeRemainingSeconds / 60);
@@ -56,7 +93,7 @@
   }
 
   function handleSelect(channel: string) {
-    onSelectChannel(channel);
+    props.onSelectChannel?.(channel);
     closeMenu();
   }
 </script>
@@ -77,11 +114,15 @@
       <path fill="#ffffff" d="m 205.07,254.57 -0.31,128.34 66.96,-51.84 0.44,51.67 73.83,-66.7 -74.41,-62.44 -0.04,52.18 z" />
     </svg>
     <span class="btn-text">GNB</span>
-    {#if autoState.isActive}
+  </button>
+
+  <!-- Separate Countdown Badge to the right of the button with green dot at start -->
+  {#if autoState.isActive}
+    <div class="gnb-timer-badge" title="次の自動巡回までの残り時間">
       <span class="live-dot"></span>
       <span class="timer-mini">{formattedTime()}</span>
-    {/if}
-  </button>
+    </div>
+  {/if}
 
   <!-- Dropdown Popover Menu -->
   {#if isOpen}
@@ -96,16 +137,15 @@
             <path fill="#882dfd" d="m 205.07,254.57 -0.31,128.34 66.96,-51.84 0.44,51.67 73.83,-66.7 -74.41,-62.44 -0.04,52.18 z" />
           </svg>
           <span class="logo-text">gnb-twview</span>
-          <span class="status-badge">{autoState.isActive ? 'AUTO 動作中' : '停止中'}</span>
         </div>
-        <button class="btn-icon" onclick={onOpenOptions} title="詳細設定">
+        <button class="btn-icon" onclick={() => props.onOpenOptions?.()} title="詳細設定">
           <Settings size={15} />
         </button>
       </div>
 
       <!-- Controls Section -->
       <div class="menu-controls">
-        <button class="btn-action {autoState.isActive ? 'btn-stop' : 'btn-start'}" onclick={onToggleAuto}>
+        <button class="btn-action {autoState.isActive ? 'btn-stop' : 'btn-start'}" onclick={() => props.onToggleAuto?.()}>
           {#if autoState.isActive}
             <Square size={14} />
             <span>AUTO 停止</span>
@@ -115,54 +155,52 @@
           {/if}
         </button>
 
-        <button class="btn-action btn-skip" onclick={onSkip} title="次の配信へスキップ">
+        <button class="btn-action btn-skip" onclick={() => props.onSkip?.()} title="次の配信へスキップ">
           <SkipForward size={14} />
           <span>スキップ</span>
         </button>
       </div>
 
-      <!-- Timer Progress Bar -->
-      {#if autoState.isActive}
-        <div class="timer-section">
-          <div class="timer-info">
-            <span>次の巡回まで:</span>
-            <span class="timer-val">{formattedTime()}</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill" style="width: {progressPercentage()}%;"></div>
-          </div>
+      <!-- Accordion Header for Streamers List -->
+      <button class="streamers-header-accordion" onclick={toggleStreamersAccordion} title="ユーザーリストの開閉">
+        <div class="accordion-title-group">
+          <span class="icon-live"><Radio size={13} /></span>
+          <span>配信中のフォロー ({liveStreamers.length}名)</span>
+        </div>
+        <span class="chevron-icon">
+          {#if isStreamersOpen}
+            <ChevronDown size={14} />
+          {:else}
+            <ChevronRight size={14} />
+          {/if}
+        </span>
+      </button>
+
+      {#if isStreamersOpen}
+        <div class="streamers-list">
+          {#if liveStreamers.length === 0}
+            <div class="empty-text">ライブ中のチャンネルはありません</div>
+          {:else}
+            {#each liveStreamers as streamer}
+              <button
+                class="streamer-row {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}"
+                onclick={() => handleSelect(streamer.user_login)}
+              >
+                {#if streamer.profile_image_url}
+                  <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
+                {/if}
+                <div class="streamer-details">
+                  <div class="streamer-name">{streamer.user_name}</div>
+                  <div class="streamer-game">{streamer.game_name || streamer.title || streamer.user_login}</div>
+                </div>
+                {#if streamer.viewer_count}
+                  <div class="viewer-count">👥 {streamer.viewer_count.toLocaleString()}</div>
+                {/if}
+              </button>
+            {/each}
+          {/if}
         </div>
       {/if}
-
-      <!-- Streamers List -->
-      <div class="streamers-header">
-        <span class="icon-live"><Radio size={13} /></span>
-        <span>配信中のフォロー ({liveStreamers.length}名)</span>
-      </div>
-
-      <div class="streamers-list">
-        {#if liveStreamers.length === 0}
-          <div class="empty-text">ライブ中のチャンネルはありません</div>
-        {:else}
-          {#each liveStreamers as streamer}
-            <button
-              class="streamer-row {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}"
-              onclick={() => handleSelect(streamer.user_login)}
-            >
-              {#if streamer.profile_image_url}
-                <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
-              {/if}
-              <div class="streamer-details">
-                <div class="streamer-name">{streamer.user_name}</div>
-                <div class="streamer-game">{streamer.game_name || streamer.title || streamer.user_login}</div>
-              </div>
-              {#if streamer.viewer_count}
-                <div class="viewer-count">👥 {streamer.viewer_count.toLocaleString()}</div>
-              {/if}
-            </button>
-          {/each}
-        {/if}
-      </div>
     </div>
   {/if}
 </div>
@@ -259,15 +297,6 @@
     -webkit-text-fill-color: transparent;
   }
 
-  .status-badge {
-    font-size: 10px;
-    background: #1e293b;
-    color: #94a3b8;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
-  }
-
   .menu-controls {
     display: flex;
     gap: 8px;
@@ -317,48 +346,37 @@
     background: #334155;
   }
 
-  .timer-section {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin-bottom: 10px;
-  }
-
-  .timer-info {
+  .streamers-header-accordion {
+    width: 100%;
     display: flex;
+    align-items: center;
     justify-content: space-between;
     font-size: 11px;
-    color: #94a3b8;
-    margin-bottom: 4px;
+    color: #cbd5e1;
+    background: rgba(30, 41, 59, 0.6);
+    border: 1px solid rgba(51, 65, 85, 0.6);
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 6px;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
-  .timer-val {
-    font-family: monospace;
-    font-weight: 700;
-    color: #38bdf8;
+  .streamers-header-accordion:hover {
+    background: rgba(51, 65, 85, 0.8);
+    border-color: #7c3aed;
   }
 
-  .progress-track {
-    height: 4px;
-    background: #0f172a;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: #38bdf8;
-    transition: width 1s linear;
-  }
-
-  .streamers-header {
+  .accordion-title-group {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
+  }
+
+  .chevron-icon {
+    display: inline-flex;
+    align-items: center;
     color: #94a3b8;
-    margin-bottom: 6px;
   }
 
   .icon-live {
@@ -447,5 +465,31 @@
     color: #64748b;
     text-align: center;
     padding: 12px 0;
+  }
+
+  .gnb-trigger-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .gnb-timer-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    color: #a78bfa;
+    font-family: monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+    white-space: nowrap;
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   }
 </style>
