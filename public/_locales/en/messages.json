@@ -1,10 +1,10 @@
 {
   "appName": {
-    "message": "GNB Twipper - Twitch Stream Hopper",
+    "message": "GNB Twipper for Twitch",
     "description": "The name of the extension."
   },
   "appDesc": {
-    "message": "Twitch minimalist viewer extension with custom CSS/JS injection and smart auto-rotation.",
+    "message": "Automated stream rotation viewer for Twitch followed channels.",
     "description": "The description of the extension."
   }
 }
