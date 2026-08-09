@@ -2,6 +2,10 @@ import { mount, unmount } from 'svelte';
 import GnbNavTrigger from './GnbNavTrigger.svelte';
 import type { AppSettings, AutoState, StreamInfo } from '../types';
 
+if (typeof window !== 'undefined') {
+  console.log('[gnb-twipper] Content Script Initialized on Twitch');
+}
+
 let triggerComponent: any = null;
 let currentSettings: AppSettings = {
   rotationTimeMinutes: 3,
@@ -9,8 +13,8 @@ let currentSettings: AppSettings = {
   language: 'ja',
   customCss: '',
   customJs: '',
-  customCssEnabled: true,
-  customJsEnabled: true,
+  customCssEnabled: false,
+  customJsEnabled: false,
 };
 let currentAutoState: AutoState = {
   isActive: false,
@@ -53,8 +57,25 @@ function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElem
   return null;
 }
 
+// Safe sendMessage helper to avoid "Extension context invalidated" errors
+function safeSendMessage(message: any, responseCallback?: (response: any) => void) {
+  try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage(message, (res) => {
+        if (chrome.runtime.lastError) {
+          // Extension context invalidated or port closed silently
+          return;
+        }
+        if (responseCallback) responseCallback(res);
+      });
+    }
+  } catch (e) {
+    // Context invalidated
+  }
+}
+
 function remountTriggerComponent() {
-  const root = document.getElementById('gnb-twview-trigger-root');
+  const root = document.getElementById('gnb-twipper-trigger-root');
   if (!root) {
     initNavTrigger();
     return;
@@ -73,26 +94,26 @@ function remountTriggerComponent() {
       liveStreamers: currentStreamers,
       onToggleAuto: () => {
         if (currentAutoState.isActive) {
-          chrome.runtime.sendMessage({ type: 'STOP_AUTO_MODE' });
+          safeSendMessage({ type: 'STOP_AUTO_MODE' });
         } else {
-          chrome.runtime.sendMessage({ type: 'START_AUTO_MODE' });
+          safeSendMessage({ type: 'START_AUTO_MODE' });
         }
       },
       onSkip: () => {
-        chrome.runtime.sendMessage({ type: 'SKIP_NEXT' });
+        safeSendMessage({ type: 'SKIP_NEXT' });
       },
       onSelectChannel: (channel: string) => {
-        chrome.runtime.sendMessage({ type: 'SELECT_STREAMER', channel });
+        safeSendMessage({ type: 'SELECT_STREAMER', channel });
       },
       onOpenOptions: () => {
-        chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' });
+        safeSendMessage({ type: 'OPEN_OPTIONS' });
       },
     },
   });
 }
 
 function initNavTrigger() {
-  if (document.getElementById('gnb-twview-trigger-root')) {
+  if (document.getElementById('gnb-twipper-trigger-root')) {
     remountTriggerComponent();
     return;
   }
@@ -103,7 +124,7 @@ function initNavTrigger() {
   }
 
   const wrapper = document.createElement('div');
-  wrapper.id = 'gnb-twview-trigger-root';
+  wrapper.id = 'gnb-twipper-trigger-root';
   wrapper.style.display = 'inline-flex';
   wrapper.style.alignItems = 'center';
   wrapper.style.marginLeft = '8px';
@@ -125,7 +146,7 @@ function initNavTrigger() {
   remountTriggerComponent();
 
   // Request initial state from background
-  chrome.runtime.sendMessage({ type: 'GET_SETTINGS' }, (res) => {
+  safeSendMessage({ type: 'GET_SETTINGS' }, (res) => {
     if (res) {
       if (res.settings) applySettings(res.settings);
       if (res.autoState) currentAutoState = res.autoState;
@@ -142,7 +163,7 @@ function applySettings(newSettings: AppSettings) {
   if (newSettings.customCssEnabled && newSettings.customCss) {
     if (!customStyleElement) {
       customStyleElement = document.createElement('style');
-      customStyleElement.id = 'gnb-twview-custom-css';
+      customStyleElement.id = 'gnb-twipper-custom-css';
       document.head.appendChild(customStyleElement);
     }
     customStyleElement.textContent = newSettings.customCss;
@@ -152,7 +173,7 @@ function applySettings(newSettings: AppSettings) {
 
   // Custom JS Injection via Background (bypasses page CSP inline script violation)
   if (newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'EXECUTE_CUSTOM_JS',
       code: newSettings.customJs,
     });
@@ -327,44 +348,55 @@ function performAndSendDomScrape() {
   const streamers = scrapeLiveStreamersFromDOM();
   if (streamers.length > 0) {
     console.log('[gnb-twipper] DOM Scrape found streamers:', streamers.length, streamers);
-    chrome.runtime.sendMessage({
+    safeSendMessage({
       type: 'UPDATE_STREAMERS_FROM_DOM',
       streamers,
-    }).catch(() => {});
+    });
   }
 }
 
 // Listen for updates or scrape requests from background
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'AUTO_STATE_UPDATE') {
-    if (msg.autoState) currentAutoState = msg.autoState;
-    if (msg.settings) applySettings(msg.settings);
-    if (msg.liveStreamers) currentStreamers = msg.liveStreamers;
-    // Note: GnbNavTrigger handles AUTO_STATE_UPDATE internally without unmounting!
-  } else if (msg.type === 'SCRAPE_LIVE_STREAMERS_REQUEST') {
-    console.log('[gnb-twipper] Received SCRAPE_LIVE_STREAMERS_REQUEST from background (Fallback Triggered)');
-    performAndSendDomScrape();
-  }
-});
-
-// Observe DOM changes to re-inject trigger button if Twitch SPA replaces header
-const observer = new MutationObserver(() => {
-  if (!document.getElementById('gnb-twview-trigger-root')) {
-    initNavTrigger();
-  }
-});
-
-observer.observe(document.body, {
-  childList: true,
-  subtree: true,
-});
-
-// Initialize trigger button on page load
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initNavTrigger();
+if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+  chrome.runtime.onMessage.addListener((msg) => {
+    try {
+      if (msg.type === 'AUTO_STATE_UPDATE') {
+        if (msg.autoState) currentAutoState = msg.autoState;
+        if (msg.settings) applySettings(msg.settings);
+        if (msg.liveStreamers) currentStreamers = msg.liveStreamers;
+      } else if (msg.type === 'SCRAPE_LIVE_STREAMERS_REQUEST') {
+        console.log('[gnb-twipper] Received SCRAPE_LIVE_STREAMERS_REQUEST from background (Fallback Triggered)');
+        performAndSendDomScrape();
+      }
+    } catch (e) {
+      // Context invalidated
+    }
   });
-} else {
-  initNavTrigger();
+}
+
+// Content script DOM initialization (using document check so bundler does not tree-shake)
+if (typeof document !== 'undefined') {
+  if (typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById('gnb-twipper-trigger-root')) {
+        initNavTrigger();
+      }
+    });
+
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
+  }
+
+  // Initialize trigger button on page load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initNavTrigger();
+    });
+  } else {
+    initNavTrigger();
+  }
 }
 

@@ -1,0 +1,30 @@
+/* gnb-twipper Theme Custom Properties */
+:root {
+  /* 背景・サーフェス */
+  --gnb-bg-main: #0f172a;        /* 全体・ポップアップ背景 (Slate 900) */
+  --gnb-bg-card: #1e293b;        /* カード・ボタン・行背景 (Slate 800) */
+  --gnb-bg-hover: #334155;       /* ホバー時背景 (Slate 700) */
+  --gnb-bg-active: #2e1065;      /* 選択中・アクティブ背景 (Purple 950) */
+
+  /* テキストカラー */
+  --gnb-text-main: #f8fafc;      /* 主要テキスト (Slate 50) */
+  --gnb-text-sub: #cbd5e1;       /* 補助テキスト (Slate 300) */
+  --gnb-text-muted: #94a3b8;     /* 補足・ゲーム名など (Slate 400) */
+  --gnb-text-dim: #64748b;       /* 非活性・説明用 (Slate 500) */
+
+  /* アクセント・ステータスカラー */
+  --gnb-accent-purple: #7c3aed;  /* メインアクセント (Violet 600) */
+  --gnb-accent-indigo: #4f46e5;  /* サブアクセント (Indigo 600) */
+  --gnb-color-timer: #38bdf8;    /* タイマー数値・ハイライト (Sky 400) */
+  --gnb-color-live: #ef4444;     /* ライブ中アイコン (Red 500) */
+  --gnb-color-success: #22c55e;  /* ドットインジケータ (Green 500) */
+
+  /* ボーダー・グラデーション */
+  --gnb-border-subtle: #334155;   /* 標準ボーダー */
+  --gnb-border-divider: #1e293b;  /* 区切り線 */
+  --gnb-border-active: #7c3aed;   /* アクティブ時枠線 */
+  --gnb-gradient-logo: linear-gradient(135deg, #a855f7, #6366f1);
+  --gnb-gradient-btn: linear-gradient(135deg, #7c3aed, #4f46e5);
+  --gnb-gradient-btn-hover: linear-gradient(135deg, #6d28d9, #4338ca);
+  --gnb-gradient-active: linear-gradient(135deg, #2563eb, #7c3aed);
+}

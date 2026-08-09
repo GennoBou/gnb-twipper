@@ -1,7 +1,6 @@
-> [!IMPORTANT]
-> **お知らせ**: 本リポジトリ（`gnb-twview`）は読み取り専用（アーカイブ）となりました。プロジェクトはプログラム名を新たに **[gnb-twipper](https://github.com/GennoBou/gnb-twipper)** に変更し、Chrome 拡張機能版として移行・再スタートしました。
+[English Edition](./README.md)
 
-# gnb-twipper (v0.2.0)
+# gnb-twipper (v0.1.0)
 
 Twitchを効率的に視聴するために設計された、Chrome 拡張機能 (Manifest V3 + Svelte 5) の自動巡回ビューアです。
 
@@ -44,7 +43,14 @@ Twitchを効率的に視聴するために設計された、Chrome 拡張機能 
 4. **「パッケージ化されていない拡張機能を読み込む」** を選択し、本プロジェクトの `dist` フォルダを指定します。
 5. [Twitch](https://www.twitch.tv) を開くと、上部ナビゲーションバーに `GNB` コントロールボタンが表示されます。
 
+## ドキュメント＆ストア公開ガイド
+
+- 🌐 [ストア掲載情報・申請用ドキュメント](./docs/STORE_LISTING_ja.md) ([English Edition](./docs/STORE_LISTING.md))
+- 🔒 [プライバシーポリシー](./docs/PRIVACY_POLICY_ja.md) ([English Edition](./docs/PRIVACY_POLICY.md))
+- 🚀 [自動リリース・ストア自動公開ガイド](./docs/DEPLOYMENT_GUIDE_ja.md) ([English Edition](./docs/DEPLOYMENT_GUIDE.md))
+
 ## 旧バージョンについて
 
 - Wails 3 (Go + WebView2) ベースの旧デスクトップアプリ版コードは、歴史的経緯として `legacy-wails3` Git ブランチおよび `/docs/local` の設計ログに保管されています。
+
 

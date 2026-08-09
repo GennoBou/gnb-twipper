@@ -22,6 +22,6 @@ Desktop.ini
 .env.local
 
 # Go binary and dependencies
-/gnb-twview.exe
-/gnb-twview
+/gnb-twipper.exe
+/gnb-twipper
 /vendor/

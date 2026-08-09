@@ -43,5 +43,14 @@
   "waitingAuth": "ユーザーの承認をお待ちしています...",
   "authError": "認証エラーが発生しました。",
   "loginInitFailed": "ログインの開始に失敗しました。",
-  "liveCount": "(ライブ {count}名)"
+  "liveCount": "(ライブ {count}名)",
+  "targetCount": "巡回対象 ({count}名)",
+  "excludedChannelsLabel": "巡回除外設定",
+  "excludedChannelsDesc": "自動巡回（ローテーション）でスキップしたい配信者を登録・設定します。（例: AmazonMusic, AmazonMusicDE 等）",
+  "addExcludedPlaceholder": "Twitch URLまたはユーザー名を入力 (例: amazonmusic)",
+  "btnAdd": "追加",
+  "alreadyExcluded": "すでに追加されています",
+  "followingBadge": "フォロー中",
+  "notFollowingBadge": "未フォロー",
+  "noExcludedChannels": "登録された除外対象はありません"
 }

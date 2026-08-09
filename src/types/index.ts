@@ -6,6 +6,14 @@ export interface StreamInfo {
   viewer_count?: number;
   profile_image_url?: string;
   started_at?: string;
+  watch_time_seconds?: number;
+}
+
+export interface ExcludedChannel {
+  user_login: string;     // 小文字ユーザーID (例: 'amazonmusic')
+  user_name?: string;     // 表示名
+  enabled: boolean;       // 除外ON/OFF (true: 巡回から除外, false: 通常巡回)
+  addedAt: number;        // 登録タイムスタンプ
 }
 
 export interface AppSettings {
@@ -16,6 +24,7 @@ export interface AppSettings {
   customJs: string;            // カスタムインジェクションJS
   customCssEnabled: boolean;
   customJsEnabled: boolean;
+  excludedChannels?: ExcludedChannel[]; // 巡回除外対象リスト
 }
 
 export interface AutoState {

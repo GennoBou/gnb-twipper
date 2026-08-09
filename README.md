@@ -1,9 +1,6 @@
 [Japanese Edition](./README_ja.md)
 
-> [!IMPORTANT]
-> **Notice**: This repository (`gnb-twview`) is archived (read-only). The project has been officially rebranded and moved to the Chrome Extension version: **[gnb-twipper](https://github.com/GennoBou/gnb-twipper)**.
-
-# gnb-twipper (v0.2.0)
+# gnb-twipper (v0.1.0)
 
 A minimalist Twitch auto-rotation Chrome Extension (Manifest V3 + Svelte 5).
 
@@ -37,14 +34,22 @@ A minimalist Twitch auto-rotation Chrome Extension (Manifest V3 + Svelte 5).
 ## Installation
 
 1. Install dependencies and build:
+
    ```bash
    npm install
    npm run build
    ```
+
 2. Open Google Chrome and navigate to `chrome://extensions/`.
 3. Enable **Developer mode** in the top right.
 4. Click **Load unpacked** and select the generated `dist/` directory.
 5. Open [Twitch](https://www.twitch.tv) to see the injected `GNB` control button.
+
+## Documentation & Store Publishing
+
+- 🌐 [Store Listing Specifications](./docs/STORE_LISTING.md) ([日本語版](./docs/STORE_LISTING_ja.md))
+- 🔒 [Privacy Policy](./docs/PRIVACY_POLICY.md) ([日本語版](./docs/PRIVACY_POLICY_ja.md))
+- 🚀 [Automated Release & Store Publishing Guide](./docs/DEPLOYMENT_GUIDE.md) ([日本語版](./docs/DEPLOYMENT_GUIDE_ja.md))
 
 ## Legacy Version
 

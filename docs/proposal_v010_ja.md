@@ -1,8 +1,8 @@
 [English Edition](./proposal_v010.md)
 
-# gnb-twview v0.1.0 開発計画・技術調査レポート
+# gnb-twipper v0.1.0 開発計画・技術調査レポート
 
-本ドキュメントは、Twitch専用ブラウザ `gnb-twview` (v0.1.0) の開発に向けた技術的調査、アルゴリズムの検討、および実装への具体的な提案をまとめたものです。
+本ドキュメントは、Twitch自動巡回ビューア `gnb-twipper` (v0.1.0) の開発に向けた技術的調査、アルゴリズムの検討、および実装への具体的な提案をまとめたものです。
 
 ---
 
@@ -43,7 +43,7 @@ Twitchの埋め込みプレイヤー（`player.twitch.tv`）は、セキュリ�
   4. Goバックエンドから直接 Twitch サーバーへ POST リクエストを送り、認可コードと `code_verifier` を引き換えてアクセストークンを取得する。
   5. トークン取得後、ローカルサーバーを停止し、トークンを安全な領域に保存する。
 - **トークンの保存方法**:
-  - 現在はホームディレクトリ配下の `~/.gnb-twview/token.json` に保存しています。将来的に、Windows: `Windows Credential Manager`（資格情報マネージャー）や Android: `EncryptedSharedPreferences` を使用した暗号化・セキュア保存への移行を検討します。
+  - 現在はホームディレクトリ配下の `~/.gnb-twipper/token.json` に保存しています。将来的に、Windows: `Windows Credential Manager`（資格情報マネージャー）や Android: `EncryptedSharedPreferences` を使用した暗号化・セキュア保存への移行を検討します。
 
 ---
 

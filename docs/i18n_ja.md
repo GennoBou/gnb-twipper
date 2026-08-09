@@ -2,7 +2,7 @@
 
 # GUI多言語化 (i18n) 仕様・設計ドキュメント
 
-本ドキュメントでは、`gnb-twview` における GUI 表示の多言語化（i18n）システムの設計、実装概要、および言語拡張の手順について解説します。
+本ドキュメントでは、`gnb-twipper` における GUI 表示の多言語化（i18n）システムの設計、実装概要、および言語拡張の手順について解説します。
 
 ---
 
@@ -44,8 +44,8 @@ graph TD
 ### 2.3. 対訳辞書ファイル
 - **ディレクトリ**: `frontend/src/locales/`
   - 各言語の対訳データは、以下の独立した JSON ファイルとして定義されています。
-    - [ja.json](file:///D:/Data/Projects/GitHub/gnb-twview/frontend/src/locales/ja.json) (日本語)
-    - [en.json](file:///D:/Data/Projects/GitHub/gnb-twview/frontend/src/locales/en.json) (英語)
+    - [ja.json](file:///D:/Data/Projects/GitHub/gnb-twipper/frontend/src/locales/ja.json) (日本語)
+    - [en.json](file:///D:/Data/Projects/GitHub/gnb-twipper/frontend/src/locales/en.json) (英語)
   - Vite の静的インポート機能によりビルド時にバンドルされるため、実行時の HTTP リクエスト（非同期 fetch）は不要です。
 
 ---

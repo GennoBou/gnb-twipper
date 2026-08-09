@@ -2,7 +2,7 @@ import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 
-const svgPath = path.resolve('public/twview.svg');
+const svgPath = path.resolve('public/twipper.svg');
 const outputDir = path.resolve('public/icons');
 
 if (!fs.existsSync(outputDir)) {

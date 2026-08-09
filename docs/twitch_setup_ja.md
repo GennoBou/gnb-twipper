@@ -1,6 +1,6 @@
 # Twitch Client ID 取得・設定手順書
 
-本アプリケーション（`gnb-twview`）で Twitch API を利用し、フォローしている配信者のライブ情報を取得するために必要な、**Client ID（クライアントID）** の取得方法と設定方法を解説します。
+本アプリケーション（`gnb-twipper`）で Twitch API を利用し、フォローしている配信者のライブ情報を取得するために必要な、**Client ID（クライアントID）** の取得方法と設定方法を解説します。
 
 ---
 
@@ -25,7 +25,7 @@ API を利用するために、あなたの専用アプリケーションを Twi
 
 | 項目名 | 設定内容 | 説明 |
 | :--- | :--- | :--- |
-| **Name** | `gnb-twview` （任意） | 他のアプリと重複しない一意の名前を入力してください。 |
+| **Name** | `gnb-twipper` （任意） | 他のアプリと重複しない一意の名前を入力してください。 |
 | **OAuth Redirect URLs** | `http://localhost:8520/callback` | **非常に重要です。** 本アプリが認証情報（認可コード）を受け取るためのローカルアドレスです。必ず正確に入力し、入力後に **[Add]** ボタンを押して追加してください。 |
 | **Category** | `Application Integration` または `Other` | アプリケーションのカテゴリを選択します。 |
 | **Client Type** | `Public` | 本アプリはデスクトップアプリケーション（シークレット情報を安全に隠せないクライアント）であるため、**Public** を選択します。 |
@@ -59,7 +59,7 @@ API を利用するために、あなたの専用アプリケーションを Twi
 
 取得した Client ID を本アプリに適用します。
 
-1. 本プロジェクトの [backend/twitchservice.go](file:///d:/Data/Projects/GitHub/gnb-twview/backend/twitchservice.go) を開きます。
+1. 本プロジェクトの [backend/twitchservice.go](file:///d:/Data/Projects/GitHub/gnb-twipper/backend/twitchservice.go) を開きます。
 2. 23行目付近にある `TwitchClientID` 定数の値を、コピーした新しい Client ID に書き換えます。
 
 ```go

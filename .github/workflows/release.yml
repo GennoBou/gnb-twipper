@@ -1,0 +1,80 @@
+name: Release & Store Auto-Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build, Release & Publish to Web Stores
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Svelte & TypeScript check
+        run: npm run check
+
+      - name: Build extension bundle
+        run: npm run build
+
+      - name: Package extension ZIP for Chrome / Opera
+        run: |
+          cd dist
+          zip -r ../chrome-extension-${{ github.ref_name }}.zip .
+          cd ..
+
+      - name: Package extension ZIP for Firefox
+        run: |
+          cd dist
+          zip -r ../firefox-extension-${{ github.ref_name }}.zip .
+          cd ..
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            chrome-extension-${{ github.ref_name }}.zip
+            firefox-extension-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Chrome Web Store
+        if: ${{ secrets.CHROME_CLIENT_ID != '' && secrets.CHROME_EXTENSION_ID != '' }}
+        uses: trungvq/chrome-extension-upload-action@v2
+        with:
+          file-name: 'chrome-extension-${{ github.ref_name }}.zip'
+          app-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish-target: 'default' # or 'trustedTesters' for restricted testing
+
+      - name: Sign & Upload to Firefox Add-ons (AMO)
+        if: ${{ secrets.WEB_EXT_API_KEY != '' && secrets.WEB_EXT_API_SECRET != '' }}
+        uses: wxt-dev/action-sign-firefox-addon@v1
+        with:
+          addon-id: 'gnb-twipper@gennobou.github.io'
+          api-key: ${{ secrets.WEB_EXT_API_KEY }}
+          api-secret: ${{ secrets.WEB_EXT_API_SECRET }}
+          zip-path: 'firefox-extension-${{ github.ref_name }}.zip'

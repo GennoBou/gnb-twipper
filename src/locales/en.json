@@ -43,5 +43,14 @@
   "waitingAuth": "Waiting for user authorization...",
   "authError": "Authentication error occurred.",
   "loginInitFailed": "Failed to start login.",
-  "liveCount": "(Live: {count})"
+  "liveCount": "(Live: {count})",
+  "targetCount": "Rotation Targets ({count})",
+  "excludedChannelsLabel": "Rotation Exclusions",
+  "excludedChannelsDesc": "Register streamers you want to skip during auto-rotation (e.g. AmazonMusic, AmazonMusicDE).",
+  "addExcludedPlaceholder": "Enter Twitch URL or username (e.g. amazonmusic)",
+  "btnAdd": "Add",
+  "alreadyExcluded": "Already added",
+  "followingBadge": "Following",
+  "notFollowingBadge": "Not Following",
+  "noExcludedChannels": "No excluded channels registered"
 }

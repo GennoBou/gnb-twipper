@@ -1,8 +1,8 @@
 [日本語版 (Japanese)](./proposal_v010_ja.md)
 
-# gnb-twview v0.1.0 Development Plan & Technical Analysis Report
+# gnb-twipper v0.1.0 Development Plan & Technical Analysis Report
 
-This document outlines the technical research, algorithm analysis, and concrete implementation proposals for the Twitch-specific browser `gnb-twview` (v0.1.0).
+This document outlines the technical research, algorithm analysis, and concrete implementation proposals for the Twitch-specific viewer `gnb-twipper` (v0.1.0).
 
 ---
 
@@ -43,7 +43,7 @@ Handling user authentication and Client ID management securely.
   4. Send a POST request directly from the Go backend to Twitch's token endpoint to exchange the authorization `code` and the `code_verifier` for an Access Token.
   5. Stop the local server and store the token securely.
 - **Secure Token Storage**:
-  - Currently, tokens are saved to `~/.gnb-twview/token.json` with restricted permissions. In the future, we plan to leverage platform-native secure storage, such as `Windows Credential Manager` for Windows and `EncryptedSharedPreferences` for Android.
+  - Currently, tokens are saved to `~/.gnb-twipper/token.json` with restricted permissions. In the future, we plan to leverage platform-native secure storage, such as `Windows Credential Manager` for Windows and `EncryptedSharedPreferences` for Android.
 
 ---
 
