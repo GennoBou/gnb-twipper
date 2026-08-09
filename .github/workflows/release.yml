@@ -59,27 +59,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to Chrome Web Store
+      - name: Upload to Chrome Web Store (Optional)
         env:
           CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
           CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
         if: env.CHROME_CLIENT_ID != '' && env.CHROME_EXTENSION_ID != ''
-        uses: PassSlot/chrome-extension-upload-action@v1.4.1
-        with:
-          file-name: 'chrome-extension-${{ github.ref_name }}.zip'
-          app-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          client-id: ${{ secrets.CHROME_CLIENT_ID }}
-          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          npx chrome-webstore-upload-cli upload --source chrome-extension-${{ github.ref_name }}.zip --extension-id $CHROME_EXTENSION_ID --client-id $CHROME_CLIENT_ID --client-secret $CHROME_CLIENT_SECRET --refresh-token $CHROME_REFRESH_TOKEN
 
-      - name: Sign & Upload to Firefox Add-ons (AMO)
+      - name: Sign & Upload to Firefox Add-ons (Optional)
         env:
           WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
           WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
-        uses: wxt-dev/sign-firefox-addon-action@v1
-        with:
-          addon-id: 'gnb-twipper@gennobou.github.io'
-          api-key: ${{ secrets.WEB_EXT_API_KEY }}
-          api-secret: ${{ secrets.WEB_EXT_API_SECRET }}
-          zip-path: 'firefox-extension-${{ github.ref_name }}.zip'
+        run: |
+          npx web-ext sign --source-dir dist --api-key $WEB_EXT_API_KEY --api-secret $WEB_EXT_API_SECRET
