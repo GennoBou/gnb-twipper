@@ -60,7 +60,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to Chrome Web Store
-        if: ${{ secrets.CHROME_CLIENT_ID != '' && secrets.CHROME_EXTENSION_ID != '' }}
+        env:
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        if: env.CHROME_CLIENT_ID != '' && env.CHROME_EXTENSION_ID != ''
         uses: trungvq/chrome-extension-upload-action@v2
         with:
           file-name: 'chrome-extension-${{ github.ref_name }}.zip'
@@ -68,10 +71,13 @@ jobs:
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          publish-target: 'default' # or 'trustedTesters' for restricted testing
+          publish-target: 'default'
 
       - name: Sign & Upload to Firefox Add-ons (AMO)
-        if: ${{ secrets.WEB_EXT_API_KEY != '' && secrets.WEB_EXT_API_SECRET != '' }}
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         uses: wxt-dev/action-sign-firefox-addon@v1
         with:
           addon-id: 'gnb-twipper@gennobou.github.io'
