@@ -78,7 +78,6 @@ When submitting to store reviewers, provide the following justifications for per
 | `storage` | Save user preferences, rotation interval settings, and channel exclusion lists locally. |
 | `alarms` | Manage precise timers for channel rotation without degrading CPU efficiency. |
 | `scripting` | Apply user-configured layout display tweaks onto twitch.tv pages. |
-| `activeTab` | Access the active Twitch tab to perform navigation during auto-rotation. |
 | `cookies` | Maintain session state and seamless streaming experience across tab switches. |
 | `tabs` | Handle Twitch player and chat window navigation for automated hopping. |
 | Host: `https://www.twitch.tv/*`, `https://gql.twitch.tv/*` | Interact with Twitch Web UI and Twitch GQL API to retrieve follow lists and stream status. |
