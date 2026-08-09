@@ -30,14 +30,13 @@ This document contains the official metadata, short descriptions, detailed descr
 **GNB Twipper for Twitch** is a minimalist browser extension designed to help you efficiently watch and rotate through live streams of your followed Twitch channels.
 
 #### Key Features:
-- 🔄 **Smart Channel Auto-Rotation**: Automatically switches between your live followed channels based on a smart queue and target watch time.
-- 🚫 **Channel Exclusions**: Easily exclude specific channels (e.g. 24/7 streams or music channels) from auto-rotation.
-- ⚡ **Minimalist & Lightweight UI**: Seamlessly integrated top navigation bar with quick controls (AUTO Start/Stop, Skip, Channel List).
-- 🌐 **Multi-language Support**: Built-in support for English and Japanese environments.
+-  **Smart Channel Auto-Rotation**: Automatically switches between your live followed channels based on a smart queue and target watch time.
+-  **Channel Exclusions**: Easily exclude specific channels (e.g. 24/7 streams or music channels) from auto-rotation.
+-  **Minimalist & Lightweight UI**: Seamlessly integrated top navigation bar with quick controls (AUTO Start/Stop, Skip, Channel List).
+-  **Multi-language Support**: Built-in support for English and Japanese environments.
 
 ---
 *Advanced Customization Note*: Supports optional custom styling and script adjustments for tailored viewing setups.
-
 ---
 
 ## 2. Firefox Add-ons (AMO) Listing

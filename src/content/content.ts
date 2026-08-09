@@ -346,13 +346,11 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
 
 function performAndSendDomScrape() {
   const streamers = scrapeLiveStreamersFromDOM();
-  if (streamers.length > 0) {
-    console.log('[gnb-twipper] DOM Scrape found streamers:', streamers.length, streamers);
-    safeSendMessage({
-      type: 'UPDATE_STREAMERS_FROM_DOM',
-      streamers,
-    });
-  }
+  console.log('[gnb-twipper] DOM Scrape found streamers:', streamers.length, streamers);
+  safeSendMessage({
+    type: 'UPDATE_STREAMERS_FROM_DOM',
+    streamers,
+  });
 }
 
 // Listen for updates or scrape requests from background

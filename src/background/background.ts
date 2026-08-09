@@ -270,9 +270,10 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
 
     console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
 
-    if (fetchedStreamers.length > 0) {
-      liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
-    } else {
+    liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
+    checkAndStopAutoIfNoStreamers();
+
+    if (fetchedStreamers.length === 0) {
       console.log('[gnb-twipper] GQL returned 0 live streamers. Requesting DOM scrape fallback to double check.');
       requestDomScrapeFromTabs();
     }
@@ -340,6 +341,14 @@ function getRotationTargetStreamers(): StreamInfo[] {
   return liveStreamers.filter(
     (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
   );
+}
+
+function checkAndStopAutoIfNoStreamers() {
+  const targets = getRotationTargetStreamers();
+  if (targets.length === 0 && autoState.isActive) {
+    console.log('[gnb-twipper] No rotation target streamers available. Automatically stopping Auto Mode.');
+    stopAutoMode();
+  }
 }
 
 // Rotate to next channel in Queue
@@ -481,9 +490,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'UPDATE_STREAMERS_FROM_DOM': {
-      if (message.streamers && message.streamers.length >= 0) {
+      if (message.streamers && Array.isArray(message.streamers)) {
         console.log('[gnb-twipper] Received streamers from DOM:', message.streamers.length);
         liveStreamers = attachWatchTimeAndCleanup(message.streamers);
+        checkAndStopAutoIfNoStreamers();
         broadcastState();
       }
       sendResponse({ success: true, count: liveStreamers.length });
