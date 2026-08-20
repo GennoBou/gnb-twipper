@@ -9,7 +9,7 @@ if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });
 }
 
-const sizes = [16, 48, 128];
+const sizes = [16, 32, 48, 64, 96, 128, 512];
 
 async function generateIcons() {
   for (const size of sizes) {

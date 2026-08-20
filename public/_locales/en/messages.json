@@ -4,7 +4,7 @@
     "description": "The name of the extension."
   },
   "appDesc": {
-    "message": "Automated stream rotation viewer for Twitch followed channels.",
+    "message": "Automatically cycle through live streams you follow on Twitch.",
     "description": "The description of the extension."
   }
 }

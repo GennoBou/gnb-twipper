@@ -30,7 +30,10 @@ export const i18n = {
    * 表示言語を設定 (辞書が存在しない言語の場合は英語 'en' にフォールバック)
    */
   set lang(value: string) {
-    currentLang = value in translations ? value : "en";
+    const nextLang = value in translations ? value : "en";
+    if (currentLang !== nextLang) {
+      currentLang = nextLang;
+    }
   },
   /**
    * 新しい言語辞書を追加・拡張する関数

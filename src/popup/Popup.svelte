@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AppSettings, AutoState, StreamInfo } from "../types";
-  import { Play, Square, SkipForward, Settings, Radio, ExternalLink, ChevronDown, ChevronRight, Clock } from "@lucide/svelte";
+  import { Play, Square, SkipForward, Settings, Radio, ExternalLink, ChevronDown, ChevronRight, Clock, Lock } from "@lucide/svelte";
+  import { i18n } from "../i18n.svelte";
 
   function formatWatchTime(seconds?: number): string {
     if (!seconds || seconds <= 0) return "00:00";
@@ -38,12 +39,21 @@
     isStreamersOpen = !isStreamersOpen;
   }
 
+  $effect(() => {
+    if (settings.language && i18n.lang !== settings.language) {
+      i18n.lang = settings.language;
+    }
+  });
+
   onMount(() => {
     chrome.runtime.sendMessage({ type: "GET_AUTO_STATE" }, (res) => {
       if (chrome.runtime.lastError) return;
       if (res) {
         if (res.autoState) autoState = res.autoState;
-        if (res.settings) settings = res.settings;
+        if (res.settings) {
+          settings = res.settings;
+          if (settings.language) i18n.lang = settings.language;
+        }
         if (res.liveStreamers) liveStreamers = res.liveStreamers;
       }
     });
@@ -57,7 +67,10 @@
     chrome.runtime.onMessage.addListener((msg) => {
       if (msg.type === "AUTO_STATE_UPDATE") {
         if (msg.autoState) autoState = msg.autoState;
-        if (msg.settings) settings = msg.settings;
+        if (msg.settings) {
+          settings = msg.settings;
+          if (settings.language) i18n.lang = settings.language;
+        }
         if (msg.liveStreamers) liveStreamers = msg.liveStreamers;
       }
     });
@@ -121,7 +134,7 @@
       </svg>
       <span class="logo-text">gnb-twipper</span>
     </div>
-    <button class="btn-icon" onclick={openOptions} title="詳細設定">
+    <button class="btn-icon" onclick={openOptions} title={i18n.t("detailSettings")}>
       <Settings size={16} />
     </button>
   </header>
@@ -131,26 +144,33 @@
     <button class="btn-main {autoState.isActive ? 'active' : ''}" onclick={toggleAuto}>
       {#if autoState.isActive}
         <Square size={16} />
-        <span>オート巡回停止</span>
+        <span>{i18n.t("popupAutoStop")}</span>
       {:else}
         <Play size={16} />
-        <span>オート巡回開始</span>
+        <span>{i18n.t("popupAutoStart")}</span>
       {/if}
     </button>
 
-    <button class="btn-secondary" onclick={skipNext} title="次の配信へ">
+    <button class="btn-secondary" onclick={skipNext} title={i18n.t("titleSkip")}>
       <SkipForward size={16} />
-      <span>スキップ</span>
+      <span>{i18n.t("popupSkip")}</span>
     </button>
   </section>
 
   <!-- Status Bar -->
   {#if autoState.isActive}
     <div class="status-bar">
-      <span>残り時間:</span>
-      <span class="time-highlight">
-        {Math.floor(autoState.timeRemainingSeconds / 60)}分 {autoState.timeRemainingSeconds % 60}秒
-      </span>
+      {#if !autoState.isStandby}
+        <span>{i18n.t("timeRemaining")}</span>
+        <span class="time-highlight">
+          {i18n.t("minutesSecsFormat", { min: Math.floor(autoState.timeRemainingSeconds / 60), sec: autoState.timeRemainingSeconds % 60 })}
+        </span>
+      {:else}
+        <span>{i18n.t("timeRemaining")}</span>
+        <span class="time-highlight standby-highlight">
+          {liveStreamers.length === 1 ? i18n.t("standbySingle") : i18n.t("standbyNone")}
+        </span>
+      {/if}
     </div>
   {/if}
 
@@ -159,7 +179,7 @@
     <button class="section-title-btn" onclick={toggleStreamers}>
       <div class="title-group">
         <span class="icon-live"><Radio size={14} /></span>
-        <span>巡回対象 ({liveStreamers.length}名)</span>
+        <span>{i18n.t("targetCount", { count: liveStreamers.length })}</span>
       </div>
       <span class="chevron">
         {#if isStreamersOpen}
@@ -174,9 +194,9 @@
       <div class="streamers-list">
         {#if liveStreamers.length === 0}
           <div class="empty-msg">
-            ライブ中のチャンネルがありません。<br />
+            {i18n.t("noLiveChannels")}<br />
             <button class="btn-link" onclick={openTwitch}>
-              Twitch を開く <ExternalLink size={12} />
+              {i18n.t("openTwitch")} <ExternalLink size={12} />
             </button>
           </div>
         {:else}
@@ -186,10 +206,15 @@
                 <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
               {/if}
               <div class="streamer-info">
-                <div class="name">{streamer.user_name}</div>
+                <div class="name-row">
+                  <span class="name">{streamer.user_name}</span>
+                  {#if streamer.is_sub_only}
+                    <span class="badge-sub-only" title="サブスクライバー限定配信"><Lock size={11} /> 限定</span>
+                  {/if}
+                </div>
                 <div class="game">{streamer.game_name || streamer.title}</div>
               </div>
-              <div class="watch-time" title="配信の視聴時間">
+              <div class="watch-time" title={i18n.t("watchTimeTooltip")}>
                 ⏱️ {formatWatchTime(streamer.watch_time_seconds)}
               </div>
             </button>
@@ -293,6 +318,12 @@
     color: var(--gnb-color-timer, #38bdf8);
     font-weight: 700;
     font-family: monospace;
+  }
+
+  .time-highlight.standby-highlight {
+    color: #fde047;
+    font-family: inherit;
+    font-size: 11px;
   }
 
   .streamers-section {
@@ -432,5 +463,25 @@
     cursor: pointer;
     margin-top: 6px;
     text-decoration: underline;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge-sub-only {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
   }
 </style>

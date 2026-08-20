@@ -21,30 +21,38 @@ This document contains the official metadata, short descriptions, detailed descr
 ## 1. Chrome Web Store Listing
 
 ### App Title / Name (Up to 45 characters)
+
 `GNB Twipper for Twitch`
 
 ### Summary / Short Description (Up to 132 characters)
-`Automated stream rotation viewer for Twitch followed channels.`
+
+`Automatically cycle through live streams you follow on Twitch.`
 
 ### Detailed Description (Overview text in Web Store)
+
 **GNB Twipper for Twitch** is a minimalist browser extension designed to help you efficiently watch and rotate through live streams of your followed Twitch channels.
 
-#### Key Features:
--  **Smart Channel Auto-Rotation**: Automatically switches between your live followed channels based on a smart queue and target watch time.
--  **Channel Exclusions**: Easily exclude specific channels (e.g. 24/7 streams or music channels) from auto-rotation.
--  **Minimalist & Lightweight UI**: Seamlessly integrated top navigation bar with quick controls (AUTO Start/Stop, Skip, Channel List).
--  **Multi-language Support**: Built-in support for English and Japanese environments.
+#### Key Features
+
+- 🔄 **Smart Channel Auto-Rotation & Standby**: Automatically switches between live followed channels on a timer. When only 1 channel is live, rotation automatically pauses so you can keep watching, and resumes automatically when 2 or more channels go live.
+- 🚫 **Channel Exclusions**: Easily exclude specific channels (e.g. 24/7 streams or music channels) from auto-rotation.
+- 🔒 **Subscriber-Only Stream Auto-Skip**: Automatically detects and skips locked sub-only streams.
+- 🧭 **Minimalist & Lightweight UI**: Seamlessly integrated top navigation bar with quick controls (AUTO Start/Stop, Skip, Channel List, Standby indicator).
+- 🌐 **Multi-language Support**: Built-in support for English and Japanese environments.
 
 ---
-*Advanced Customization Note*: Supports optional custom styling and script adjustments for tailored viewing setups.
+
+*Advanced Customization Note*: Supports optional custom styling and script adjustments for tailored viewing setups
 ---
 
 ## 2. Firefox Add-ons (AMO) Listing
 
 ### Summary (Up to 250 characters)
-`Automated stream rotation viewer for Twitch followed channels.`
+
+`Automatically cycle through live streams you follow on Twitch.`
 
 ### Detailed Description
+
 (Same as Chrome Web Store detailed description above)
 
 ---
@@ -52,9 +60,11 @@ This document contains the official metadata, short descriptions, detailed descr
 ## 3. Opera Addons Listing
 
 ### Short Summary
-`Automated stream rotation viewer for Twitch followed channels.`
+
+`Automatically cycle through live streams you follow on Twitch.`
 
 ### Detailed Description
+
 (Same as Chrome Web Store detailed description above)
 
 ---
@@ -62,6 +72,7 @@ This document contains the official metadata, short descriptions, detailed descr
 ## 🔒 Publishing Scope (Limited / Unlisted Publication)
 
 To publish as a **Limited / Unlisted (限定公開)** extension:
+
 1. In Chrome Developer Dashboard, navigate to **Distribution -> Visibility**.
 2. Select **Unlisted**.
 3. Only users with the direct store link will be able to view and install the extension; it will not appear in public search results.

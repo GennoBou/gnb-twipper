@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AppSettings, AutoState, StreamInfo } from "../types";
-  import { Play, Square, SkipForward, Settings, Radio, ChevronDown, ChevronRight } from "@lucide/svelte";
+  import { Play, Square, SkipForward, Settings, Radio, ChevronDown, ChevronRight, Lock } from "@lucide/svelte";
+  import { i18n } from "../i18n.svelte";
 
   function formatWatchTime(seconds?: number): string {
     if (!seconds || seconds <= 0) return "00:00";
@@ -54,7 +55,12 @@
     if (props.autoState) autoState = props.autoState;
   });
   $effect(() => {
-    if (props.settings) settings = props.settings;
+    if (props.settings) {
+      if (props.settings.language && i18n.lang !== props.settings.language) {
+        i18n.lang = props.settings.language;
+      }
+      settings = props.settings;
+    }
   });
   $effect(() => {
     if (props.liveStreamers) liveStreamers = props.liveStreamers;
@@ -65,7 +71,12 @@
       try {
         if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id && msg.type === "AUTO_STATE_UPDATE") {
           if (msg.autoState) autoState = msg.autoState;
-          if (msg.settings) settings = msg.settings;
+          if (msg.settings) {
+            if (msg.settings.language && i18n.lang !== msg.settings.language) {
+              i18n.lang = msg.settings.language;
+            }
+            settings = msg.settings;
+          }
           if (msg.liveStreamers) liveStreamers = msg.liveStreamers;
         }
       } catch (e) {
@@ -130,15 +141,22 @@
 
   <!-- Quick Skip Button & Timer Badge (AUTOモード時のみ表示) -->
   {#if autoState.isActive}
-    <button class="gnb-quick-skip-btn" onclick={() => props.onSkip?.()} title="次の配信へスキップ">
-      <span>Skip</span>
-      <SkipForward size={14} />
-    </button>
+    {#if !autoState.isStandby}
+      <button class="gnb-quick-skip-btn" onclick={() => props.onSkip?.()} title={i18n.t("titleSkip")}>
+        <span>Skip</span>
+        <SkipForward size={14} />
+      </button>
 
-    <div class="gnb-timer-text" title="次の自動巡回までの残り時間">
-      <span class="live-dot"></span>
-      <span class="timer-mini">{formattedTime()}</span>
-    </div>
+      <div class="gnb-timer-text" title={i18n.t("timeRemaining")}>
+        <span class="live-dot"></span>
+        <span class="timer-mini">{formattedTime()}</span>
+      </div>
+    {:else}
+      <div class="gnb-standby-badge" title={liveStreamers.length === 1 ? i18n.t("standbySingle") : i18n.t("standbyNone")}>
+        <span class="standby-dot"></span>
+        <span class="standby-text">{liveStreamers.length === 1 ? i18n.t("standbySingle") : i18n.t("standbyNone")}</span>
+      </div>
+    {/if}
   {/if}
 
   <!-- Dropdown Popover Menu -->
@@ -168,7 +186,7 @@
             props.onOpenOptions?.();
             closeMenu();
           }}
-          title="詳細設定"
+          title={i18n.t("detailSettings")}
         >
           <Settings size={15} />
         </button>
@@ -179,16 +197,16 @@
         <button class="btn-action {autoState.isActive ? 'btn-stop' : 'btn-start'}" onclick={() => props.onToggleAuto?.()}>
           {#if autoState.isActive}
             <Square size={14} />
-            <span>AUTO 停止</span>
+            <span>{i18n.t("autoStop")}</span>
           {:else}
             <Play size={14} />
-            <span>AUTO 開始</span>
+            <span>{i18n.t("autoStart")}</span>
           {/if}
         </button>
 
-        <button class="btn-action btn-skip" onclick={() => props.onSkip?.()} title="次の配信へスキップ">
+        <button class="btn-action btn-skip" onclick={() => props.onSkip?.()} title={i18n.t("titleSkip")}>
           <SkipForward size={14} />
-          <span>スキップ</span>
+          <span>{i18n.t("popupSkip")}</span>
         </button>
       </div>
 
@@ -196,7 +214,7 @@
       <button class="streamers-header-accordion" onclick={toggleStreamersAccordion} title="ユーザーリストの開閉">
         <div class="accordion-title-group">
           <span class="icon-live"><Radio size={13} /></span>
-          <span>巡回対象 ({liveStreamers.length}名)</span>
+          <span>{i18n.t("targetCount", { count: liveStreamers.length })}</span>
         </div>
         <span class="chevron-icon">
           {#if isStreamersOpen}
@@ -210,7 +228,7 @@
       {#if isStreamersOpen}
         <div class="streamers-list">
           {#if liveStreamers.length === 0}
-            <div class="empty-text">ライブ中のチャンネルはありません</div>
+            <div class="empty-text">{i18n.t("noLiveChannels")}</div>
           {:else}
             {#each liveStreamers as streamer}
               <button class="streamer-row {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}" onclick={() => handleSelect(streamer.user_login)}>
@@ -218,10 +236,15 @@
                   <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
                 {/if}
                 <div class="streamer-details">
-                  <div class="streamer-name">{streamer.user_name}</div>
+                  <div class="streamer-name-row">
+                    <span class="streamer-name">{streamer.user_name}</span>
+                    {#if streamer.is_sub_only}
+                      <span class="sub-only-badge" title="サブスクライバー限定配信"><Lock size={10} /> 限定</span>
+                    {/if}
+                  </div>
                   <div class="streamer-game">{streamer.game_name || streamer.title || streamer.user_login}</div>
                 </div>
-                <div class="watch-time-badge" title="配信の視聴時間">
+                <div class="watch-time-badge" title={i18n.t("watchTimeTooltip")}>
                   ⏱️ {formatWatchTime(streamer.watch_time_seconds)}
                 </div>
               </button>
@@ -572,5 +595,70 @@
     line-height: 1;
     white-space: nowrap;
     user-select: none;
+  }
+
+  .streamer-name-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sub-only-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    background: rgba(168, 85, 247, 0.2);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .gnb-standby-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 2.6rem;
+    padding: 0 8px;
+    background: rgba(234, 179, 8, 0.15);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    border-radius: 6px;
+    box-sizing: border-box;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .standby-dot {
+    width: 6px;
+    height: 6px;
+    background: #eab308;
+    border-radius: 50%;
+    animation: pulse-yellow 2s infinite;
+  }
+
+  @keyframes pulse-yellow {
+    0% {
+      transform: scale(0.95);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.3);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(0.95);
+      opacity: 0.8;
+    }
+  }
+
+  .standby-text {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fde047;
+    line-height: 1;
   }
 </style>

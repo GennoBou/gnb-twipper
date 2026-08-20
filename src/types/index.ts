@@ -7,6 +7,7 @@ export interface StreamInfo {
   profile_image_url?: string;
   started_at?: string;
   watch_time_seconds?: number;
+  is_sub_only?: boolean;
 }
 
 export interface ExcludedChannel {
@@ -25,10 +26,13 @@ export interface AppSettings {
   customCssEnabled: boolean;
   customJsEnabled: boolean;
   excludedChannels?: ExcludedChannel[]; // 巡回除外対象リスト
+  skipSubOnlyStreams?: boolean; // サブスク限定配信を自動スキップするか
+  allowSubOnlyFreePreview?: boolean; // 無料視聴期間中はスキップせずに視聴するか
 }
 
 export interface AutoState {
   isActive: boolean;
+  isStandby?: boolean;
   timeRemainingSeconds: number;
   totalDurationSeconds: number;
   currentChannel: string;
@@ -46,5 +50,7 @@ export type ExtensionMessage =
   | { type: 'GET_AUTO_STATE' }
   | { type: 'OPEN_OPTIONS' }
   | { type: 'EXECUTE_CUSTOM_JS'; code: string }
-  | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] };
+  | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] }
+  | { type: 'DETECTED_SUB_ONLY_LOCK'; channel?: string }
+  | { type: 'NAVIGATE_TO_CHANNEL_REPLACE'; channel: string };
 

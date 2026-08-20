@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   customCssEnabled: false,
   customJsEnabled: false,
   excludedChannels: [],
+  skipSubOnlyStreams: false,
+  allowSubOnlyFreePreview: true,
 };
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
@@ -18,6 +20,7 @@ let liveStreamers: StreamInfo[] = [];
 let watchTimeMap: Record<string, number> = {};
 let autoState: AutoState = {
   isActive: false,
+  isStandby: false,
   timeRemainingSeconds: 0,
   totalDurationSeconds: 180,
   currentChannel: '',
@@ -25,6 +28,42 @@ let autoState: AutoState = {
 
 let countdownTimer: number | null = null;
 let watchTimer: number | null = null;
+
+let dynamicClientId: string | null = null; // インストール時・401エラー時は白紙 (null)
+let last401Time = 0;
+const COOL_DOWN_401_MS = 60000; // 401発生後、1分間は無駄なGQL再判定の頻発を防止
+
+// 保存済みの動的 Client-ID をロード (あれば使用、なければ白紙のまま)
+chrome.storage.local.get(['detectedClientId'], (res) => {
+  if (res && typeof res.detectedClientId === 'string') {
+    dynamicClientId = res.detectedClientId;
+    console.log('[gnb-twipper] Loaded saved Client-ID:', dynamicClientId);
+  } else {
+    console.log('[gnb-twipper] Client-ID is initially empty (null). Waiting to capture from twitch.tv packet.');
+  }
+});
+
+// Twitch タブからの GQL パケットをリアルタイム監視し、Client-ID を検出したら有効化
+if (typeof chrome !== 'undefined' && chrome.webRequest && chrome.webRequest.onBeforeSendHeaders) {
+  chrome.webRequest.onBeforeSendHeaders.addListener(
+    (details) => {
+      if (details.requestHeaders) {
+        const clientHeader = details.requestHeaders.find((h) => h.name.toLowerCase() === 'client-id');
+        if (clientHeader && clientHeader.value) {
+          if (dynamicClientId !== clientHeader.value) {
+            console.log('[gnb-twipper] [Auto Detect] Captured valid Client-ID from Twitch packet:', clientHeader.value);
+            dynamicClientId = clientHeader.value;
+            last401Time = 0; // 検出成功により401クールダウンを解除
+            chrome.storage.local.set({ detectedClientId: dynamicClientId });
+          }
+        }
+      }
+      return undefined;
+    },
+    { urls: ['https://gql.twitch.tv/gql'] },
+    ['requestHeaders']
+  );
+}
 
 function extractChannelFromUrl(url: string): string | null {
   try {
@@ -39,6 +78,66 @@ function extractChannelFromUrl(url: string): string | null {
     }
   } catch (e) {}
   return null;
+}
+
+// API-level sub-only entitlement check via Twitch GQL PlaybackAccessToken
+async function checkSubOnlyAuthViaGql(logins: string[]): Promise<Record<string, boolean>> {
+  if (!logins || logins.length === 0 || !dynamicClientId) return {};
+
+  try {
+    const authToken = await getTwitchAuthToken();
+    const deviceId = await getTwitchDeviceId();
+
+    const headers: Record<string, string> = {
+      'Client-ID': dynamicClientId,
+      'Content-Type': 'text/plain; charset=UTF-8',
+    };
+
+    if (deviceId) headers['Device-ID'] = deviceId;
+    if (authToken) headers['Authorization'] = `OAuth ${authToken}`;
+
+    const bodyPayload = logins.map((login) => ({
+      operationName: 'PlaybackAccessTokenQuery',
+      query: `
+        query PlaybackAccessTokenQuery($login: String!) {
+          streamPlaybackAccessToken(channelName: $login, params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) {
+            authorization {
+              isForbidden
+              forbiddenReasonCode
+            }
+          }
+        }
+      `,
+      variables: { login },
+    }));
+
+    const response = await fetch('https://gql.twitch.tv/gql', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyPayload),
+    });
+
+    if (!response.ok) return {};
+
+    const data = await response.json();
+    const subOnlyMap: Record<string, boolean> = {};
+
+    if (Array.isArray(data)) {
+      data.forEach((item: any, idx: number) => {
+        const login = logins[idx];
+        const auth = item?.data?.streamPlaybackAccessToken?.authorization;
+        if (login && auth) {
+          const isSubOnly = !!auth.isForbidden && (auth.forbiddenReasonCode === 'UNAUTHORIZED_ENTITLEMENTS' || auth.forbiddenReasonCode === 'SUB_ONLY');
+          subOnlyMap[login.toLowerCase()] = isSubOnly;
+        }
+      });
+    }
+
+    return subOnlyMap;
+  } catch (e) {
+    console.error('[gnb-twipper] Error checking sub-only API status:', e);
+    return {};
+  }
 }
 
 function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
@@ -165,8 +264,11 @@ async function getTwitchAuthToken(): Promise<string | null> {
   });
 }
 
-// Request active Twitch tabs to scrape live streamers from DOM
-function requestDomScrapeFromTabs() {
+let zeroStreamerCount = 0;
+let domScrapeRetryTimer: any = null;
+
+// Request active Twitch tabs to scrape live streamers from DOM with optional retry
+function requestDomScrapeFromTabs(retryCount = 0) {
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
     tabs.forEach((tab) => {
       if (tab.id) {
@@ -174,25 +276,85 @@ function requestDomScrapeFromTabs() {
       }
     });
   });
+
+  // DOMがまだ未完成の場合を想定し、初期リトライをスケジュール (最大3回)
+  if (retryCount < 3) {
+    if (domScrapeRetryTimer) clearTimeout(domScrapeRetryTimer);
+    domScrapeRetryTimer = setTimeout(() => {
+      if (liveStreamers.length === 0) {
+        console.log(`[gnb-twipper] Streamers count still 0. Retrying DOM scrape (attempt ${retryCount + 1}/3)...`);
+        requestDomScrapeFromTabs(retryCount + 1);
+      }
+    }, 2500);
+  }
 }
+
+// Helper to get Twitch device-id (unique_id cookie)
+async function getTwitchDeviceId(): Promise<string | null> {
+  return new Promise((resolve) => {
+    chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'unique_id' }, (cookie) => {
+      if (cookie && cookie.value) {
+        resolve(cookie.value);
+      } else {
+        chrome.cookies.getAll({ name: 'unique_id' }, (cookies) => {
+          const match = cookies.find((c) => c.domain.includes('twitch.tv'));
+          resolve(match ? match.value : null);
+        });
+      }
+    });
+  });
+}
+
+let lastGqlFetchTime = 0;
+const MIN_GQL_INTERVAL_MS = 5000; // 5秒以内の連続GQLリクエストを抑止
 
 // Fetch followed live channels via Twitch GQL API
 async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
+  const now = Date.now();
+  if (now - lastGqlFetchTime < MIN_GQL_INTERVAL_MS) {
+    console.log(`[gnb-twipper] [GQL Throttle] Skipped GQL request (last request was ${now - lastGqlFetchTime}ms ago). Returning cached streamers (${liveStreamers.length}).`);
+    return liveStreamers;
+  }
+  lastGqlFetchTime = now;
+
+  // 1. Client-ID が白紙 (未検出) の場合は GQL を呼んで無駄な401を起こさず、DOMスクレイピングを使用
+  if (!dynamicClientId) {
+    console.log('[gnb-twipper] [GQL Init] Client-ID is empty (null). Waiting for Twitch tab packet to capture Client-ID. Using DOM scrape fallback.');
+    requestDomScrapeFromTabs();
+    return liveStreamers;
+  }
+
+  // 2. 直近で 401 エラーが発生した場合は 60 秒間のクールダウンを適用 (過剰な白紙化・連打防止)
+  if (last401Time > 0 && now - last401Time < COOL_DOWN_401_MS) {
+    console.log(`[gnb-twipper] [GQL Cooldown] 401 cooldown active (${Math.round((COOL_DOWN_401_MS - (now - last401Time)) / 1000)}s remaining). Using DOM scrape fallback.`);
+    requestDomScrapeFromTabs();
+    return liveStreamers;
+  }
+
   try {
     const authToken = await getTwitchAuthToken();
-    console.log('[gnb-twipper] Twitch Auth Token present:', !!authToken, authToken ? `(length: ${authToken.length})` : '');
+    const deviceId = await getTwitchDeviceId();
+    console.log('[gnb-twipper] [GQL Request] Sending request to https://gql.twitch.tv/gql', {
+      time: new Date().toLocaleTimeString(),
+      hasAuthToken: !!authToken,
+      hasDeviceId: !!deviceId,
+      usingClientId: dynamicClientId,
+      authTokenPreview: authToken ? `${authToken.substring(0, 4)}...${authToken.substring(authToken.length - 4)}` : 'NULL',
+    });
 
-    const CLIENT_ID = 'kimne78kx3ncx6brogo4h6w166b418';
     const headers: Record<string, string> = {
-      'Client-ID': CLIENT_ID,
-      'Content-Type': 'application/json',
+      'Client-ID': dynamicClientId,
+      'Content-Type': 'text/plain; charset=UTF-8',
     };
+
+    if (deviceId) {
+      headers['Device-ID'] = deviceId;
+    }
 
     if (authToken) {
       headers['Authorization'] = `OAuth ${authToken}`;
     }
 
-    // Verified working Twitch GQL Query for followed live streams
     const bodyPayload = [
       {
         operationName: 'GnbFollowsLiveQuery',
@@ -231,10 +393,19 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     });
 
     if (!response.ok) {
-      console.warn('[gnb-twipper] GQL response HTTP error status:', response.status);
+      console.warn(`[gnb-twipper] [GQL Response Error] HTTP ${response.status} ${response.statusText}.`);
+      if (response.status === 401) {
+        console.warn('[gnb-twipper] 401 Unauthorized detected. Resetting Client-ID to empty and starting 60s cooldown.');
+        dynamicClientId = null;
+        last401Time = now;
+        chrome.storage.local.remove(['detectedClientId']);
+      }
       requestDomScrapeFromTabs();
       return liveStreamers;
     }
+
+    last401Time = 0; // 正常レスポンス時は 401 クールダウンをリセット
+    console.log('[gnb-twipper] [GQL Response OK] HTTP 200 Success');
 
     const data = await response.json();
     console.log('[gnb-twipper] GQL raw response structure:', data);
@@ -251,13 +422,13 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     }
 
     const edges = currentUser.follows?.edges || [];
-    const fetchedStreamers: StreamInfo[] = [];
+    const rawFetched: StreamInfo[] = [];
 
     edges.forEach((edge: any) => {
       const node = edge?.node;
       const stream = node?.stream;
       if (node && stream) {
-        fetchedStreamers.push({
+        rawFetched.push({
           user_login: node.login,
           user_name: node.displayName || node.login,
           title: stream.title || '',
@@ -268,10 +439,19 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
       }
     });
 
+    // Twitch GQL API (PlaybackAccessToken) で各ライブ配信のサブスク視聴権限・ロックを一括判定
+    const logins = rawFetched.map((s) => s.user_login);
+    const subOnlyMap = await checkSubOnlyAuthViaGql(logins);
+
+    const fetchedStreamers: StreamInfo[] = rawFetched.map((s) => ({
+      ...s,
+      is_sub_only: !!subOnlyMap[s.user_login.toLowerCase()],
+    }));
+
     console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
 
     liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
-    checkAndStopAutoIfNoStreamers();
+    evaluateAutoState();
 
     if (fetchedStreamers.length === 0) {
       console.log('[gnb-twipper] GQL returned 0 live streamers. Requesting DOM scrape fallback to double check.');
@@ -286,20 +466,13 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
   }
 }
 
-// Start Auto Rotation Mode
-function startAutoMode(initialChannel?: string) {
-  markInitialAutoStarted();
-  autoState.isActive = true;
+function startTimer() {
+  stopTimer();
   autoState.totalDurationSeconds = settings.rotationTimeMinutes * 60;
   autoState.timeRemainingSeconds = autoState.totalDurationSeconds;
-  if (initialChannel) {
-    autoState.currentChannel = initialChannel;
-  }
-
-  stopTimer();
 
   countdownTimer = self.setInterval(() => {
-    if (!autoState.isActive) return;
+    if (!autoState.isActive || autoState.isStandby) return;
 
     if (autoState.timeRemainingSeconds > 0) {
       autoState.timeRemainingSeconds -= 1;
@@ -309,16 +482,6 @@ function startAutoMode(initialChannel?: string) {
 
     broadcastState();
   }, 1000) as unknown as number;
-
-  broadcastState();
-}
-
-// Stop Auto Mode
-function stopAutoMode() {
-  markInitialAutoStarted();
-  autoState.isActive = false;
-  stopTimer();
-  broadcastState();
 }
 
 function stopTimer() {
@@ -328,7 +491,48 @@ function stopTimer() {
   }
 }
 
-// Helper to get active rotation target streamers (filtering out enabled exclusions)
+// Start Auto Rotation Mode
+function startAutoMode(initialChannel?: string) {
+  markInitialAutoStarted();
+  autoState.isActive = true;
+
+  if (initialChannel) {
+    autoState.currentChannel = initialChannel;
+  }
+
+  const candidates = getAutoRotationCandidates();
+
+  if (candidates.length >= 2) {
+    autoState.isStandby = false;
+    // 現在のチャンネルが候補にいなければ1人目をセット
+    if (!autoState.currentChannel || !candidates.some((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase())) {
+      autoState.currentChannel = candidates[0].user_login;
+      navigateToChannel(autoState.currentChannel);
+    }
+    startTimer();
+  } else if (candidates.length === 1) {
+    autoState.isStandby = true;
+    autoState.currentChannel = candidates[0].user_login;
+    navigateToChannel(candidates[0].user_login);
+    stopTimer();
+  } else {
+    autoState.isStandby = true;
+    stopTimer();
+  }
+
+  broadcastState();
+}
+
+// Stop Auto Mode (ユーザーによる手動停止)
+function stopAutoMode() {
+  markInitialAutoStarted();
+  autoState.isActive = false;
+  autoState.isStandby = false;
+  stopTimer();
+  broadcastState();
+}
+
+// Helper to get active rotation target streamers for UI display (filtering out user exclusions)
 function getRotationTargetStreamers(): StreamInfo[] {
   if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
     return liveStreamers;
@@ -343,12 +547,59 @@ function getRotationTargetStreamers(): StreamInfo[] {
   );
 }
 
-function checkAndStopAutoIfNoStreamers() {
+// Helper to get eligible streamers for auto-rotation
+function getAutoRotationCandidates(): StreamInfo[] {
   const targets = getRotationTargetStreamers();
-  if (targets.length === 0 && autoState.isActive) {
-    console.log('[gnb-twipper] No rotation target streamers available. Automatically stopping Auto Mode.');
-    stopAutoMode();
+  if (settings.skipSubOnlyStreams && !settings.allowSubOnlyFreePreview) {
+    return targets.filter((streamer) => !streamer.is_sub_only);
   }
+  return targets;
+}
+
+// 配信者一覧の更新や設定変更時に、オートモードの状態（通常巡回 / 待機）を自動判定・遷移
+function evaluateAutoState() {
+  // 手動で停止している場合は人数が増減しても何もしない
+  if (!autoState.isActive) return;
+
+  const candidates = getAutoRotationCandidates();
+
+  if (candidates.length >= 2) {
+    if (autoState.isStandby) {
+      console.log('[gnb-twipper] Streamers increased to 2 or more. Resuming Auto Mode rotation.');
+      autoState.isStandby = false;
+      if (!autoState.currentChannel || !candidates.some((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase())) {
+        autoState.currentChannel = candidates[0].user_login;
+        navigateToChannel(autoState.currentChannel);
+      }
+      startTimer();
+    } else {
+      // 巡回中だが、現在見ているチャンネルが配信終了等で候補外になった場合
+      const isCurrentActive = candidates.some((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase());
+      if (!isCurrentActive) {
+        rotateToNextChannel();
+      }
+    }
+  } else if (candidates.length === 1) {
+    const singleStreamer = candidates[0].user_login;
+    if (!autoState.isStandby) {
+      console.log('[gnb-twipper] Streamers decreased to 1. Switching to Standby mode (watching continuously without page reload).');
+      autoState.isStandby = true;
+      stopTimer();
+    }
+    if (autoState.currentChannel.toLowerCase() !== singleStreamer.toLowerCase()) {
+      autoState.currentChannel = singleStreamer;
+      navigateToChannel(singleStreamer);
+    }
+  } else {
+    // 0人の場合
+    if (!autoState.isStandby) {
+      console.log('[gnb-twipper] No streamers live. Switching to Standby mode.');
+      autoState.isStandby = true;
+      stopTimer();
+    }
+  }
+
+  broadcastState();
 }
 
 // Rotate to next channel in Queue
@@ -357,31 +608,38 @@ async function rotateToNextChannel() {
     await fetchFollowedLiveChannels();
   }
 
-  const targetStreamers = getRotationTargetStreamers();
+  const candidates = getAutoRotationCandidates();
 
-  if (targetStreamers.length === 0) {
-    console.log('[gnb-twipper] No rotation target streamers found.');
-    stopAutoMode();
-    return;
+  if (candidates.length >= 2) {
+    const currentIndex = candidates.findIndex((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase());
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % candidates.length : 0;
+    const nextStreamer = candidates[nextIndex];
+
+    autoState.isStandby = false;
+    autoState.currentChannel = nextStreamer.user_login;
+    startTimer();
+
+    navigateToChannel(nextStreamer.user_login);
+    broadcastState();
+  } else {
+    evaluateAutoState();
   }
-
-  const currentIndex = targetStreamers.findIndex(s => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase());
-  const nextIndex = (currentIndex + 1) % targetStreamers.length;
-  const nextStreamer = targetStreamers[nextIndex];
-
-  autoState.currentChannel = nextStreamer.user_login;
-  autoState.timeRemainingSeconds = settings.rotationTimeMinutes * 60;
-
-  navigateToChannel(nextStreamer.user_login);
-  broadcastState();
 }
 
-// Navigate Twitch tab
+// Navigate Twitch tab (履歴を増やさずに上書き遷移)
 function navigateToChannel(channel: string) {
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
     if (tabs.length > 0 && tabs[0].id) {
+      const tabId = tabs[0].id;
       const targetUrl = `https://www.twitch.tv/${channel}`;
-      chrome.tabs.update(tabs[0].id, { url: targetUrl });
+      chrome.tabs
+        .sendMessage(tabId, {
+          type: 'NAVIGATE_TO_CHANNEL_REPLACE',
+          channel,
+        })
+        .catch(() => {
+          chrome.tabs.update(tabId, { url: targetUrl });
+        });
     }
   });
 }
@@ -428,7 +686,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
     case 'SAVE_SETTINGS': {
       settings = { ...settings, ...message.settings };
-      chrome.storage.local.set({ settings }).then(() => broadcastState());
+      chrome.storage.local.set({ settings }).then(() => {
+        evaluateAutoState();
+        broadcastState();
+      });
       sendResponse({ success: true, settings });
       break;
     }
@@ -455,6 +716,25 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     case 'SKIP_NEXT': {
       rotateToNextChannel();
       sendResponse({ success: true, autoState });
+      break;
+    }
+
+    case 'DETECTED_SUB_ONLY_LOCK': {
+      console.log('[gnb-twipper] Sub-only stream lock detected on channel:', message.channel);
+      if (message.channel) {
+        const targetLogin = message.channel.toLowerCase();
+        const streamer = liveStreamers.find((s) => s.user_login.toLowerCase() === targetLogin);
+        if (streamer && !streamer.is_sub_only) {
+          streamer.is_sub_only = true;
+          console.log(`[gnb-twipper] Marked @${targetLogin} as is_sub_only = true`);
+          broadcastState();
+        }
+      }
+      if (autoState.isActive && settings.skipSubOnlyStreams) {
+        console.log('[gnb-twipper] Auto-skipping locked sub-only stream...');
+        rotateToNextChannel();
+      }
+      sendResponse({ success: true });
       break;
     }
 
@@ -492,8 +772,40 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     case 'UPDATE_STREAMERS_FROM_DOM': {
       if (message.streamers && Array.isArray(message.streamers)) {
         console.log('[gnb-twipper] Received streamers from DOM:', message.streamers.length);
-        liveStreamers = attachWatchTimeAndCleanup(message.streamers);
-        checkAndStopAutoIfNoStreamers();
+        const logins = message.streamers.map((s) => s.user_login);
+        checkSubOnlyAuthViaGql(logins).then((subOnlyMap) => {
+          const updatedStreamers = message.streamers.map((s) => {
+            const existing = liveStreamers.find((old) => old.user_login.toLowerCase() === s.user_login.toLowerCase());
+            const apiSubOnly = subOnlyMap[s.user_login.toLowerCase()];
+            const isSubOnly = apiSubOnly !== undefined ? apiSubOnly : (existing ? !!existing.is_sub_only : false);
+            return {
+              ...s,
+              is_sub_only: isSubOnly,
+            };
+          });
+          liveStreamers = attachWatchTimeAndCleanup(updatedStreamers);
+          evaluateAutoState();
+          broadcastState();
+        });
+
+        if (message.streamers.length > 0) {
+          zeroStreamerCount = 0;
+          if (domScrapeRetryTimer) clearTimeout(domScrapeRetryTimer);
+
+          // autoStartOnLoginが有効で、初期読み込み遅延等によりオートモードが誤停止していた場合は自動再開
+          if (settings.autoStartOnLogin && !autoState.isActive) {
+            console.log('[gnb-twipper] Streamers successfully retrieved from DOM. Resuming Auto Mode.');
+            startAutoMode();
+          }
+        } else {
+          zeroStreamerCount += 1;
+          // 初期化中のDOM未構築による誤停止を防ぐため、3回連続で0件の場合のみ判定
+          if (zeroStreamerCount >= 3) {
+            evaluateAutoState();
+          } else {
+            console.log(`[gnb-twipper] Streamers count is 0 (${zeroStreamerCount}/3 attempts). Waiting for DOM/Retries before changing Auto Mode.`);
+          }
+        }
         broadcastState();
       }
       sendResponse({ success: true, count: liveStreamers.length });

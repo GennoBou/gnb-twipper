@@ -10,13 +10,19 @@ A minimalist Twitch auto-rotation Chrome Extension (Manifest V3 + Svelte 5).
 
 ### Key Features
 
-- **Auto Rotation Mode**: Automatically rotates through followed live channels based on a customizable interval (default 3 minutes).
+- **Auto Rotation Mode & Smart Standby**:
+  - Automatically rotates through followed live channels based on a customizable interval (default 3 minutes).
+  - Automatically pauses page navigation when only 1 channel is live to allow continuous watching, and automatically resumes rotation when 2 or more channels go live.
+- **Subscriber-Only Stream Auto-Skip**:
+  - Automatically detects and skips unsubscribed subscriber-only streams via Twitch GQL API and player overlay inspection (with optional free preview support).
+- **Rotation Exclusion Management**:
+  - Easily register and exclude specific channels (e.g. 24/7 streams, music bots) from the auto-rotation queue.
 - **Hybrid GQL API & DOM Scrape Architecture**:
   - Fetches followed live streams directly via Service Worker using Twitch GQL API.
   - Automatically falls back to Content Script DOM scraping when API limits or unauthenticated states occur.
 - **Twitch Header Embedded UI (`GnbNavTrigger`)**:
   - Seamlessly injected into the Twitch top search bar.
-  - Features an accordion followed streamer list, timer badge, AUTO Start/Stop, Skip button, and quick settings access.
+  - Features an accordion followed streamer list, timer & standby badge, AUTO Start/Stop, Skip button, and quick settings access.
 - **Auto Start on Launch (`autoStartOnLogin`)**:
   - Option to automatically begin channel rotation as soon as Twitch or Chrome is launched.
 - **Custom Injections (CSS/JS)**:

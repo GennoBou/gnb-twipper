@@ -157,27 +157,39 @@ function initNavTrigger() {
 }
 
 function applySettings(newSettings: AppSettings) {
-  currentSettings = newSettings;
+  const cssChanged =
+    !currentSettings ||
+    currentSettings.customCss !== newSettings.customCss ||
+    currentSettings.customCssEnabled !== newSettings.customCssEnabled;
 
-  // Custom CSS Injection
-  if (newSettings.customCssEnabled && newSettings.customCss) {
-    if (!customStyleElement) {
-      customStyleElement = document.createElement('style');
-      customStyleElement.id = 'gnb-twipper-custom-css';
-      document.head.appendChild(customStyleElement);
+  const jsChanged =
+    !currentSettings ||
+    currentSettings.customJs !== newSettings.customJs ||
+    currentSettings.customJsEnabled !== newSettings.customJsEnabled;
+
+  // Custom CSS Injection (実際に変更があった場合のみDOM更新)
+  if (cssChanged) {
+    if (newSettings.customCssEnabled && newSettings.customCss) {
+      if (!customStyleElement) {
+        customStyleElement = document.createElement('style');
+        customStyleElement.id = 'gnb-twipper-custom-css';
+        document.head.appendChild(customStyleElement);
+      }
+      customStyleElement.textContent = newSettings.customCss;
+    } else if (customStyleElement) {
+      customStyleElement.textContent = '';
     }
-    customStyleElement.textContent = newSettings.customCss;
-  } else if (customStyleElement) {
-    customStyleElement.textContent = '';
   }
 
-  // Custom JS Injection via Background (bypasses page CSP inline script violation)
-  if (newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
+  // Custom JS Injection (初回または設定変更時のみスクリプト送信)
+  if (jsChanged && newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
     safeSendMessage({
       type: 'EXECUTE_CUSTOM_JS',
       code: newSettings.customJs,
     });
   }
+
+  currentSettings = newSettings;
 }
 
 function scrapeLiveStreamersFromDOM(): StreamInfo[] {
@@ -296,6 +308,18 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
     const imgEl = a.querySelector<HTMLImageElement>('img');
     const profileImageUrl = imgEl?.src || '';
 
+    const rawAria = a.getAttribute('aria-label') || a.getAttribute('title') || '';
+    let extractedNameFromAria = '';
+    if (rawAria) {
+      // "表示名 (login_id)" や "表示名" のパターンから表示名を抽出
+      const match = rawAria.match(/^([^(]+)\s*\([^)]+\)/);
+      if (match) {
+        extractedNameFromAria = cleanText(match[1]);
+      } else {
+        extractedNameFromAria = cleanText(rawAria.split('\n')[0]);
+      }
+    }
+
     const titleEl =
       a.querySelector('[data-a-target="side-nav-title"]') ||
       a.querySelector('.side-nav-card__title') ||
@@ -303,6 +327,9 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
       a.querySelector('span');
 
     let userName = cleanText(titleEl?.textContent);
+    if (!userName && extractedNameFromAria) {
+      userName = extractedNameFromAria;
+    }
     if (!userName && imgEl?.alt) {
       userName = cleanText(imgEl.alt);
     }
@@ -364,6 +391,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
       } else if (msg.type === 'SCRAPE_LIVE_STREAMERS_REQUEST') {
         console.log('[gnb-twipper] Received SCRAPE_LIVE_STREAMERS_REQUEST from background (Fallback Triggered)');
         performAndSendDomScrape();
+      } else if (msg.type === 'NAVIGATE_TO_CHANNEL_REPLACE') {
+        if (msg.channel) {
+          const targetUrl = `https://www.twitch.tv/${msg.channel}`;
+          // 履歴を増やさずに現在の履歴エントリを上書きして遷移
+          window.location.replace(targetUrl);
+        }
       }
     } catch (e) {
       // Context invalidated
@@ -396,5 +429,81 @@ if (typeof document !== 'undefined') {
   } else {
     initNavTrigger();
   }
+}
+
+// Sub-only stream lock detection and auto-skip logic
+let lastLockedChannel: string | null = null;
+
+function checkSubOnlyLock() {
+  const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
+  if (!currentPath || currentPath.includes('.')) return;
+
+  // Search Twitch player overlay for sub-only lock indicators
+  const overlayContent =
+    document.querySelector('.preview-overlay') ||
+    document.querySelector('.preview-overlay__content') ||
+    document.querySelector('[data-test-selector="preview-content-broadcaster-streaming-status"]') ||
+    document.querySelector('[data-a-target="player-overlay-content"]') ||
+    document.querySelector('.player-overlay-background') ||
+    document.querySelector('[data-a-target="player-overlay-gate"]') ||
+    document.querySelector('.sub-only-container') ||
+    document.querySelector('[data-test-selector="sub-only-gate"]');
+
+  let isLocked = false;
+
+  if (overlayContent) {
+    const text = overlayContent.textContent || '';
+    if (
+      text.includes('サブスクライバー向け') ||
+      text.includes('サブスクライバー限定') ||
+      text.includes('無料プレビューの期間が終了') ||
+      text.includes('Subscriber-Only') ||
+      text.includes('Subscribers Only') ||
+      text.includes('この配信はサブスクライバー限定') ||
+      text.includes('サブスクライブして') ||
+      text.includes('Subscribe to continue') ||
+      text.includes('Subscribe to watch')
+    ) {
+      isLocked = true;
+    }
+  }
+
+  if (!isLocked) {
+    // Additional check: Sub-only badge or locked player gates
+    const lockElement =
+      document.querySelector('div[class*="sub-only-container"]') ||
+      document.querySelector('div[class*="sub_only_container"]') ||
+      document.querySelector('p[data-test-selector="preview-content-broadcaster-streaming-status"]');
+
+    if (lockElement && lockElement.textContent?.includes('サブスクライバー')) {
+      isLocked = true;
+    }
+  }
+
+  if (isLocked) {
+    if (lastLockedChannel !== currentPath) {
+      lastLockedChannel = currentPath;
+      console.log(`[gnb-twipper] Detected sub-only stream lock on @${currentPath}. Sending DETECTED_SUB_ONLY_LOCK to background.`);
+      safeSendMessage({
+        type: 'DETECTED_SUB_ONLY_LOCK',
+        channel: currentPath,
+      });
+    }
+  } else {
+    if (lastLockedChannel === currentPath) {
+      lastLockedChannel = null;
+    }
+  }
+}
+
+// Periodic timer to monitor player lock state (every 1.5s)
+if (typeof window !== 'undefined') {
+  window.setInterval(() => {
+    try {
+      checkSubOnlyLock();
+    } catch (e) {
+      // Ignore background context invalidations
+    }
+  }, 1500);
 }
 

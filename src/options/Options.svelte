@@ -1,8 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { slide } from "svelte/transition";
   import type { AppSettings, StreamInfo } from "../types";
-  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2 } from "@lucide/svelte";
+  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2 } from "@lucide/svelte";
+  import { i18n } from "../i18n.svelte";
+  import * as acorn from "acorn";
 
   const placeholderCssText = "/* 例: nav { display: none !important; } */";
   const placeholderJsText = "// 例: console.log('gnb-twipper custom script injected');";
@@ -16,36 +18,107 @@
     customCssEnabled: false,
     customJsEnabled: false,
     excludedChannels: [],
+    skipSubOnlyStreams: false,
+    allowSubOnlyFreePreview: true,
   });
 
-  let isSaved = $state(false);
+  let saveState = $state<"idle" | "saving" | "saved">("idle");
   let newExcludedInput = $state("");
   let liveStreamers = $state<StreamInfo[]>([]);
+  let isLoaded = $state(false);
+
+  // CSP安全なJS構文チェック関数 (acorn ASTパーサー使用)
+  function checkJsSyntax(code: string): { valid: boolean; error?: string } {
+    if (!code.trim()) return { valid: true };
+    try {
+      acorn.parse(code, { ecmaVersion: "latest", sourceType: "module", allowReturnOutsideFunction: true, allowAwaitOutsideFunction: true, allowImportExportEverywhere: true });
+      return { valid: true };
+    } catch (err: any) {
+      return { valid: false, error: err.message || String(err) };
+    }
+  }
+
+  function checkCssSyntax(code: string): { valid: boolean; error?: string } {
+    if (!code.trim()) return { valid: true };
+    try {
+      if (typeof CSSStyleSheet !== "undefined" && typeof CSSStyleSheet.prototype.replaceSync === "function") {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync(code);
+      }
+      return { valid: true };
+    } catch (err: any) {
+      return { valid: false, error: err.message || String(err) };
+    }
+  }
+
+  let cssSyntax = $derived(checkCssSyntax(settings.customCss));
+  let jsSyntax = $derived(checkJsSyntax(settings.customJs));
 
   onMount(() => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => {
       if (chrome.runtime.lastError) {
         console.warn("[gnb-twipper] GET_SETTINGS lastError:", chrome.runtime.lastError.message);
+        isLoaded = true;
         return;
       }
       if (res && res.settings) {
         settings = { excludedChannels: [], ...res.settings };
+        if (settings.language) {
+          i18n.lang = settings.language;
+        }
       }
       if (res && res.liveStreamers) {
         liveStreamers = res.liveStreamers;
       }
+      // 初期ロード完了後に自動保存のリスナーを有効化
+      setTimeout(() => {
+        isLoaded = true;
+      }, 100);
     });
   });
 
-  function saveSettings() {
+  // 言語の変更を即時反映
+  $effect(() => {
+    if (settings.language) {
+      i18n.lang = settings.language;
+    }
+  });
+
+  // デバウンス付き自動保存
+  let saveTimer: any = null;
+  function triggerAutoSave() {
+    if (!isLoaded) return;
+    saveState = "saving";
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveSettingsDirectly();
+    }, 500);
+  }
+
+  function saveSettingsDirectly() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveState = "saving";
     chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", settings }, () => {
       if (chrome.runtime.lastError) return;
-      isSaved = true;
+      saveState = "saved";
       setTimeout(() => {
-        isSaved = false;
+        if (saveState === "saved") {
+          saveState = "idle";
+        }
       }, 2000);
     });
   }
+
+  // settings の変更を監視して自動保存
+  $effect(() => {
+    // 依存関係として settings の主要プロパティを構造購読
+    const _ = JSON.stringify(settings);
+    if (isLoaded) {
+      untrack(() => {
+        triggerAutoSave();
+      });
+    }
+  });
 
   function extractUsername(input: string): string {
     const trimmed = input.trim();
@@ -96,13 +169,13 @@
     ];
 
     newExcludedInput = "";
-    saveSettings();
+    saveSettingsDirectly();
   }
 
   function removeExcludedChannel(userLogin: string) {
     if (!settings.excludedChannels) return;
     settings.excludedChannels = settings.excludedChannels.filter((item) => item.user_login.toLowerCase() !== userLogin.toLowerCase());
-    saveSettings();
+    saveSettingsDirectly();
   }
 
   function toggleExcludedChannel(userLogin: string) {
@@ -113,7 +186,7 @@
       }
       return item;
     });
-    saveSettings();
+    saveSettingsDirectly();
   }
 </script>
 
@@ -132,62 +205,89 @@
         <path fill="none" stroke="#882dfd" stroke-width="33.6" d="m 217.46,326.24 a 88.1,90.4 0 0 1 -81.4,-55.8 88.1,90.4 0 0 1 19.1,-98.5 88.1,90.4 0 0 1 96,-19.6 88.1,90.4 0 0 1 54.4,83.5" />
         <path fill="#882dfd" d="m 205.07,254.57 -0.31,128.34 66.96,-51.84 0.44,51.67 73.83,-66.7 -74.41,-62.44 -0.04,52.18 z" />
       </svg>
-      <h1>gnb-twipper 設定</h1>
+      <h1>{i18n.t("appTitle")}</h1>
     </div>
-    <button class="btn-save" onclick={saveSettings}>
-      {#if isSaved}
+    <button class="btn-save {saveState}" onclick={saveSettingsDirectly}>
+      {#if saveState === "saving"}
+        <Loader2 size={18} class="spin-icon" />
+        <span>{i18n.t("saving")}</span>
+      {:else if saveState === "saved"}
         <Check size={18} />
-        <span>保存完了</span>
+        <span>{i18n.t("saved")}</span>
       {:else}
         <Save size={18} />
-        <span>設定を保存</span>
+        <span>{i18n.t("saveSettings")}</span>
       {/if}
     </button>
   </header>
 
   <main class="content">
     <section class="card">
-      <h2>巡回タイマー設定</h2>
+      <h2><Clock size={18} /> {i18n.t("timerSectionTitle")}</h2>
 
       <div class="form-group checkbox-group">
         <label class="checkbox-label">
           <input type="checkbox" bind:checked={settings.autoStartOnLogin} />
-          <Play size={16} /> 起動時にオートモードを自動開始する
+          <Play size={16} /> {i18n.t("autoStartLabel")}
         </label>
+        <p class="help-text">{i18n.t("autoStartDesc")}</p>
       </div>
 
       <div class="form-group">
-        <label for="rotationTime">巡回切り替え時間 (分):</label>
+        <label for="rotationTime">{i18n.t("rotationTimeMinutesLabel")}</label>
         <input id="rotationTime" type="number" min="1" max="60" bind:value={settings.rotationTimeMinutes} class="input-number" />
-        <p class="help-text">オートモード時に、次の配信者に切り替わるまでのタイマー時間です。</p>
+        <p class="help-text">{i18n.t("rotationTimeDesc")}</p>
       </div>
     </section>
 
     <section class="card">
-      <h2>巡回除外設定</h2>
-      <p class="help-text">自動巡回（ローテーション）でスキップしたい配信者を登録・管理します。（例: AmazonMusic, AmazonMusicDE 等）</p>
+      <h2><UserX size={18} /> {i18n.t("excludedChannelsLabel")}</h2>
+      <p class="help-text">{i18n.t("excludedChannelsDesc")}</p>
+
+      <!-- Sub-Only Stream Controls -->
+      <div class="sub-only-controls">
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" bind:checked={settings.skipSubOnlyStreams} />
+            {i18n.t("skipSubOnlyLabel")}
+          </label>
+          <p class="help-text">{i18n.t("skipSubOnlyDesc")}</p>
+        </div>
+
+        {#if settings.skipSubOnlyStreams}
+          <div class="form-group checkbox-group sub-option" transition:slide={{ duration: 180 }}>
+            <label class="checkbox-label">
+              <input type="checkbox" bind:checked={settings.allowSubOnlyFreePreview} />
+              {i18n.t("allowSubOnlyFreePreviewLabel")}
+            </label>
+            <p class="help-text">{i18n.t("allowSubOnlyFreePreviewDesc")}</p>
+          </div>
+        {/if}
+      </div>
+
+      <hr class="section-divider" />
 
       <div class="add-exclusion-form">
         <div class="input-wrapper">
-          <input type="text" bind:value={newExcludedInput} placeholder="Twitch URLまたはユーザー名を入力 (例: amazonmusic)" class="input-text" onkeydown={(e) => e.key === "Enter" && addExcludedChannel()} />
+          <input type="text" bind:value={newExcludedInput} placeholder={i18n.t("addExcludedPlaceholder")} class="input-text" onkeydown={(e) => e.key === "Enter" && addExcludedChannel()} />
           {#if extractedUser}
             <div class="extracted-preview">
               <span class="user-id">@{extractedUser}</span>
               {#if isFollowingExtracted}
-                <span class="badge badge-success"><CheckCircle2 size={12} /> フォロー中</span>
+                <span class="badge badge-success"><CheckCircle2 size={12} /> {i18n.t("followingBadge")}</span>
               {/if}
             </div>
           {/if}
         </div>
         <button class="btn-add" onclick={addExcludedChannel} disabled={!extractedUser}>
           <Plus size={16} />
-          <span>追加</span>
+          <span>{i18n.t("btnAdd")}</span>
         </button>
       </div>
 
       <div class="exclusion-list">
         {#if !settings.excludedChannels || settings.excludedChannels.length === 0}
-          <div class="empty-exclusion">登録された除外対象はありません</div>
+          <div class="empty-exclusion">{i18n.t("noExcludedChannels")}</div>
         {:else}
           {#each settings.excludedChannels as item}
             {@const isFollowing = liveStreamers.some((s) => s.user_login.toLowerCase() === item.user_login.toLowerCase())}
@@ -199,7 +299,7 @@
                 <span class="item-name">{item.user_name || item.user_login}</span>
                 <span class="item-id">({item.user_login})</span>
                 {#if isFollowing}
-                  <span class="badge badge-success-sm">フォロー中</span>
+                  <span class="badge badge-success-sm">{i18n.t("followingBadge")}</span>
                 {/if}
               </div>
               <button class="btn-delete" onclick={() => removeExcludedChannel(item.user_login)} title="除外リストから削除">
@@ -212,46 +312,63 @@
     </section>
 
     <section class="card">
-      <h2>カスタムインジェクション (CSS / JS)</h2>
-      <p class="help-text">Twitch Web ページ上に自動適用される独自の CSS および JavaScript ロジックを構成します。</p>
+      <h2><Code size={18} /> {i18n.t("customInjectionsTitle")}</h2>
+      <p class="help-text">{i18n.t("customInjectionsHelp")}</p>
 
+      <!-- Custom CSS Editor -->
       <div class="editor-block">
         <div class="editor-header">
           <label class="checkbox-label">
             <input type="checkbox" bind:checked={settings.customCssEnabled} />
-            カスタム CSS を有効化
+            {i18n.t("customCssLabel")}
           </label>
         </div>
         {#if settings.customCssEnabled}
           <div transition:slide={{ duration: 220 }}>
-            <textarea bind:value={settings.customCss} placeholder={placeholderCssText} class="code-editor"></textarea>
+            <textarea bind:value={settings.customCss} placeholder={placeholderCssText} class="code-editor {cssSyntax.valid ? '' : 'has-error'}"></textarea>
+            <div class="checker-status {cssSyntax.valid ? 'valid' : 'invalid'}">
+              {#if cssSyntax.valid}
+                <span class="status-badge success"><CheckCircle2 size={13} /> {i18n.t("noSyntaxErrors")}</span>
+              {:else}
+                <span class="status-badge error"><AlertTriangle size={13} /> {i18n.t("syntaxError")} {cssSyntax.error}</span>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
 
+      <!-- Custom JS Editor -->
       <div class="editor-block">
         <div class="editor-header">
           <label class="checkbox-label">
             <input type="checkbox" bind:checked={settings.customJsEnabled} />
-            カスタム JS を有効化
+            {i18n.t("customJsLabel")}
           </label>
         </div>
         {#if settings.customJsEnabled}
           <div transition:slide={{ duration: 220 }}>
-            <textarea bind:value={settings.customJs} placeholder={placeholderJsText} class="code-editor"></textarea>
+            <textarea bind:value={settings.customJs} placeholder={placeholderJsText} class="code-editor {jsSyntax.valid ? '' : 'has-error'}"></textarea>
+            <div class="checker-status {jsSyntax.valid ? 'valid' : 'invalid'}">
+              {#if jsSyntax.valid}
+                <span class="status-badge success"><CheckCircle2 size={13} /> {i18n.t("noSyntaxErrors")}</span>
+              {:else}
+                <span class="status-badge error"><AlertTriangle size={13} /> {i18n.t("syntaxError")} {jsSyntax.error}</span>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
     </section>
 
     <section class="card">
-      <h2>言語設定</h2>
+      <h2><Globe size={18} /> {i18n.t("languageSectionTitle")}</h2>
       <div class="form-group">
-        <label for="language">表示言語 (Language):</label>
+        <label for="language">{i18n.t("languageLabel")}:</label>
         <select id="language" bind:value={settings.language} class="select-input">
-          <option value="ja">日本語 (Japanese)</option>
-          <option value="en">English</option>
+          <option value="ja">{i18n.t("langJapanese")}</option>
+          <option value="en">{i18n.t("langEnglish")}</option>
         </select>
+        <p class="help-text">{i18n.t("languageDesc")}</p>
       </div>
     </section>
   </main>
@@ -306,11 +423,32 @@
     border-radius: 8px;
     font-weight: 700;
     cursor: pointer;
-    transition: background 0.15s ease;
+    transition: all 0.15s ease;
   }
 
   .btn-save:hover {
     background: #1d4ed8;
+  }
+
+  .btn-save.saving {
+    background: #475569;
+  }
+
+  .btn-save.saved {
+    background: #16a34a;
+  }
+
+  :global(.spin-icon) {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .content {
@@ -401,10 +539,40 @@
     box-sizing: border-box;
     outline: none;
     resize: vertical;
+    transition: border-color 0.2s ease;
   }
 
   .code-editor:focus {
     border-color: #9333ea;
+  }
+
+  .code-editor.has-error {
+    border-color: #ef4444;
+  }
+
+  .checker-status {
+    margin-top: 4px;
+    font-size: 11px;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-family: monospace;
+  }
+
+  .status-badge.success {
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.1);
+  }
+
+  .status-badge.error {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
+    word-break: break-all;
   }
 
   .add-exclusion-form {
@@ -579,5 +747,24 @@
   .btn-delete:hover {
     opacity: 1;
     background: rgba(239, 68, 68, 0.15);
+  }
+
+  .sub-only-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .sub-option {
+    margin-left: 24px;
+    padding-left: 12px;
+    border-left: 2px solid #6366f1;
+  }
+
+  .section-divider {
+    border: none;
+    border-top: 1px solid #334155;
+    margin: 16px 0 20px 0;
   }
 </style>
