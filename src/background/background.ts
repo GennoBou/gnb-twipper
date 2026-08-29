@@ -813,19 +813,21 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'EXECUTE_CUSTOM_JS': {
-      if (_sender.tab && _sender.tab.id && message.code) {
+      if (_sender.tab && _sender.tab.id && settings.customJsEnabled && settings.customJs && settings.customJs.trim()) {
         chrome.scripting.executeScript({
           target: { tabId: _sender.tab.id },
           world: 'MAIN',
           func: (codeToExec: string) => {
             try {
-              const scriptFun = new Function(codeToExec);
-              scriptFun();
+              const scriptEl = document.createElement('script');
+              scriptEl.textContent = `(function(){\n${codeToExec}\n})();`;
+              (document.head || document.documentElement).appendChild(scriptEl);
+              scriptEl.remove();
             } catch (e) {
               console.error('[gnb-twipper] Custom JS execution error:', e);
             }
           },
-          args: [message.code],
+          args: [settings.customJs],
         }).catch((err) => {
           console.error('[gnb-twipper] chrome.scripting.executeScript error:', err);
         });
