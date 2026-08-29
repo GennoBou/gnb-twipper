@@ -533,16 +533,19 @@ function stopAutoMode() {
 }
 
 // Helper to get active rotation target streamers for UI display (filtering out user exclusions)
-function getRotationTargetStreamers(): StreamInfo[] {
-  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
-    return liveStreamers;
+export function getRotationTargetStreamers(
+  streamers: StreamInfo[] = liveStreamers,
+  appSettings: AppSettings = settings
+): StreamInfo[] {
+  if (!appSettings.excludedChannels || appSettings.excludedChannels.length === 0) {
+    return streamers;
   }
   const excludedLogins = new Set(
-    settings.excludedChannels
+    appSettings.excludedChannels
       .filter((item) => item.enabled)
       .map((item) => item.user_login.toLowerCase())
   );
-  return liveStreamers.filter(
+  return streamers.filter(
     (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
   );
 }
