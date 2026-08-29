@@ -140,13 +140,16 @@ async function checkSubOnlyAuthViaGql(logins: string[]): Promise<Record<string, 
   }
 }
 
-function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
+export function attachWatchTimeAndCleanup(
+  fetched: StreamInfo[],
+  targetWatchTimeMap: Record<string, number> = watchTimeMap
+): StreamInfo[] {
   const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
   
   // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
-  Object.keys(watchTimeMap).forEach((key) => {
+  Object.keys(targetWatchTimeMap).forEach((key) => {
     if (!currentLiveLogins.has(key)) {
-      delete watchTimeMap[key];
+      delete targetWatchTimeMap[key];
     }
   });
 
@@ -154,7 +157,7 @@ function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
     const key = s.user_login.toLowerCase();
     return {
       ...s,
-      watch_time_seconds: watchTimeMap[key] || 0,
+      watch_time_seconds: targetWatchTimeMap[key] || 0,
     };
   });
 }

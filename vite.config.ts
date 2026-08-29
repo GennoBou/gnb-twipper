@@ -14,4 +14,7 @@ export default defineConfig({
     outDir: 'dist',
     modulePreload: false, // Fix "cross-world extension resource mismatch" warning in Chrome Extensions
   },
+  test: {
+    setupFiles: ['./vitest.setup.ts'],
+  },
 });
