@@ -26,7 +26,6 @@ let currentStreamers: StreamInfo[] = [];
 
 // Custom Injection Elements
 let customStyleElement: HTMLStyleElement | null = null;
-let customScriptElement: HTMLScriptElement | null = null;
 
 // Find Twitch Nav Search Container and ensure flex row layout
 function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElement } | null {
@@ -162,11 +161,6 @@ function applySettings(newSettings: AppSettings) {
     currentSettings.customCss !== newSettings.customCss ||
     currentSettings.customCssEnabled !== newSettings.customCssEnabled;
 
-  const jsChanged =
-    !currentSettings ||
-    currentSettings.customJs !== newSettings.customJs ||
-    currentSettings.customJsEnabled !== newSettings.customJsEnabled;
-
   // Custom CSS Injection (実際に変更があった場合のみDOM更新)
   if (cssChanged) {
     if (newSettings.customCssEnabled && newSettings.customCss) {
@@ -178,22 +172,6 @@ function applySettings(newSettings: AppSettings) {
       customStyleElement.textContent = newSettings.customCss;
     } else if (customStyleElement) {
       customStyleElement.textContent = '';
-    }
-  }
-
-  // Custom JS Injection (実際に変更があった場合のみDOM更新)
-  if (jsChanged) {
-    const existingScript = document.getElementById('gnb-twipper-custom-js');
-    if (existingScript) {
-      existingScript.remove();
-      customScriptElement = null;
-    }
-
-    if (newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
-      customScriptElement = document.createElement('script');
-      customScriptElement.id = 'gnb-twipper-custom-js';
-      customScriptElement.textContent = newSettings.customJs;
-      (document.head || document.documentElement).appendChild(customScriptElement);
     }
   }
 

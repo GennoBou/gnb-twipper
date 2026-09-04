@@ -223,6 +223,8 @@ chrome.storage.local.get(['settings'], async (result) => {
     chrome.storage.local.set({ settings });
   }
 
+  syncCustomUserScript(settings);
+
   const alreadyStarted = await isInitialAutoStarted();
   // Auto-start auto mode if autoStartOnLogin is enabled and not already running / triggered in session
   if (settings.autoStartOnLogin && !autoState.isActive && !alreadyStarted) {
@@ -286,6 +288,67 @@ function requestDomScrapeFromTabs(retryCount = 0) {
         requestDomScrapeFromTabs(retryCount + 1);
       }
     }, 2500);
+  }
+}
+
+// Get unified userScripts API for Chrome and Firefox
+function getUserScriptsApi(): typeof chrome.userScripts | null {
+  if (typeof chrome !== 'undefined' && chrome.userScripts) {
+    return chrome.userScripts;
+  }
+  if (typeof (globalThis as any).browser !== 'undefined' && (globalThis as any).browser.userScripts) {
+    return (globalThis as any).browser.userScripts;
+  }
+  return null;
+}
+
+// Sync custom user script with userScripts API
+async function syncCustomUserScript(appSettings: AppSettings): Promise<{ allowed: boolean; error?: string }> {
+  const userScriptsApi = getUserScriptsApi();
+  if (!userScriptsApi) {
+    console.warn('[gnb-twipper] userScripts API is not available in this environment.');
+    return { allowed: false, error: 'API unavailable' };
+  }
+
+  const scriptId = 'gnb-twipper-custom-script';
+
+  try {
+    // Check if userScripts API is available / allowed (Developer mode check in Chrome)
+    const existing = await userScriptsApi.getScripts({ ids: [scriptId] });
+    if (existing.length > 0) {
+      await userScriptsApi.unregister({ ids: [scriptId] });
+    }
+
+    if (appSettings.customJsEnabled && appSettings.customJs && appSettings.customJs.trim()) {
+      await userScriptsApi.register([
+        {
+          id: scriptId,
+          matches: ['*://*.twitch.tv/*'],
+          js: [{ code: appSettings.customJs }],
+          world: 'MAIN',
+          runAt: 'document_idle',
+        },
+      ]);
+      console.log('[gnb-twipper] Custom user script successfully registered via userScripts API');
+    }
+    return { allowed: true };
+  } catch (err: any) {
+    console.warn('[gnb-twipper] Error syncing user script via userScripts API:', err);
+    return { allowed: false, error: err?.message || String(err) };
+  }
+}
+
+// Check user script status
+async function checkUserScriptsStatus(): Promise<{ allowed: boolean; error?: string }> {
+  const userScriptsApi = getUserScriptsApi();
+  if (!userScriptsApi) {
+    return { allowed: false, error: 'API unavailable' };
+  }
+  try {
+    await userScriptsApi.getScripts();
+    return { allowed: true };
+  } catch (err: any) {
+    return { allowed: false, error: err?.message || String(err) };
   }
 }
 
@@ -690,8 +753,17 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         evaluateAutoState();
         broadcastState();
       });
-      sendResponse({ success: true, settings });
-      break;
+      syncCustomUserScript(settings).then((status) => {
+        sendResponse({ success: true, settings, userScriptsStatus: status });
+      });
+      return true;
+    }
+
+    case 'CHECK_USER_SCRIPTS_STATUS': {
+      checkUserScriptsStatus().then((status) => {
+        sendResponse(status);
+      });
+      return true;
     }
 
     case 'GET_LIVE_STREAMERS': {

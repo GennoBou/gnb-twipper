@@ -61,6 +61,7 @@
   "rotationTimeMinutesLabel": "Rotation interval (minutes):",
   "customCssLabel": "Enable Custom CSS",
   "customJsLabel": "Enable Custom JS",
+  "customJsDevModeRequired": "Custom JavaScript execution requires Developer Mode to be enabled in chrome://extensions.",
   "customInjectionsTitle": "Custom Injections (CSS / JS)",
   "customInjectionsHelp": "Configure custom CSS and JavaScript logic to be automatically applied to Twitch pages.",
   "languageSectionTitle": "Language Settings",

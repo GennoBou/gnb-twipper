@@ -27,6 +27,9 @@
   let liveStreamers = $state<StreamInfo[]>([]);
   let isLoaded = $state(false);
 
+  let userScriptsAllowed = $state(true);
+  let userScriptsError = $state<string | null>(null);
+
   // CSP安全なJS構文チェック関数 (acorn ASTパーサー使用)
   function checkJsSyntax(code: string): { valid: boolean; error?: string } {
     if (!code.trim()) return { valid: true };
@@ -70,10 +73,16 @@
       if (res && res.liveStreamers) {
         liveStreamers = res.liveStreamers;
       }
-      // 初期ロード完了後に自動保存のリスナーを有効化
-      setTimeout(() => {
-        isLoaded = true;
-      }, 100);
+
+      chrome.runtime.sendMessage({ type: "CHECK_USER_SCRIPTS_STATUS" }, (statusRes) => {
+        if (!chrome.runtime.lastError && statusRes) {
+          userScriptsAllowed = statusRes.allowed;
+          userScriptsError = statusRes.error || null;
+        }
+        setTimeout(() => {
+          isLoaded = true;
+        }, 100);
+      });
     });
   });
 
@@ -340,12 +349,18 @@
       <!-- Custom JS Editor -->
       <div class="editor-block">
         <div class="editor-header">
-          <label class="checkbox-label">
-            <input type="checkbox" bind:checked={settings.customJsEnabled} />
+          <label class="checkbox-label {userScriptsAllowed ? '' : 'disabled-label'}">
+            <input type="checkbox" bind:checked={settings.customJsEnabled} disabled={!userScriptsAllowed} />
             {i18n.t("customJsLabel")}
           </label>
         </div>
-        {#if settings.customJsEnabled}
+
+        {#if !userScriptsAllowed}
+          <div class="devmode-notice">
+            <AlertTriangle size={15} />
+            <span>{i18n.t("customJsDevModeRequired")}</span>
+          </div>
+        {:else if settings.customJsEnabled}
           <div transition:slide={{ duration: 220 }}>
             <textarea bind:value={settings.customJs} placeholder={placeholderJsText} class="code-editor {jsSyntax.valid ? '' : 'has-error'}"></textarea>
             <div class="checker-status {jsSyntax.valid ? 'valid' : 'invalid'}">
@@ -509,6 +524,25 @@
     gap: 8px;
     cursor: pointer;
     user-select: none;
+  }
+
+  .checkbox-label.disabled-label {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .devmode-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: rgba(234, 179, 8, 0.1);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 6px;
+    color: #fde047;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   .help-text {

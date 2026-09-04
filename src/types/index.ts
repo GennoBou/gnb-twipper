@@ -49,6 +49,7 @@ export type ExtensionMessage =
   | { type: 'SELECT_STREAMER'; channel: string }
   | { type: 'GET_AUTO_STATE' }
   | { type: 'OPEN_OPTIONS' }
+  | { type: 'CHECK_USER_SCRIPTS_STATUS' }
   | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] }
   | { type: 'DETECTED_SUB_ONLY_LOCK'; channel?: string }
   | { type: 'NAVIGATE_TO_CHANNEL_REPLACE'; channel: string };

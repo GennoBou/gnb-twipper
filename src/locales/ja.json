@@ -61,6 +61,7 @@
   "rotationTimeMinutesLabel": "巡回切り替え時間 (分):",
   "customCssLabel": "カスタム CSS を有効化",
   "customJsLabel": "カスタム JS を有効化",
+  "customJsDevModeRequired": "カスタム JavaScript を実行するには、chrome://extensions でデベロッパーモードを有効にする必要があります。",
   "customInjectionsTitle": "カスタムインジェクション (CSS / JS)",
   "customInjectionsHelp": "Twitch Web ページ上に自動適用される独自の CSS および JavaScript ロジックを構成します。",
   "languageSectionTitle": "言語設定",
