@@ -1,4 +1,5 @@
 import type { AppSettings, StreamInfo, AutoState, ExtensionMessage } from '../types';
+import { extractChannelFromUrl } from '../utils/url';
 
 console.log('[gnb-twipper] Background Service Worker Initialized');
 
@@ -63,21 +64,6 @@ if (typeof chrome !== 'undefined' && chrome.webRequest && chrome.webRequest.onBe
     { urls: ['https://gql.twitch.tv/gql'] },
     ['requestHeaders']
   );
-}
-
-function extractChannelFromUrl(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    if (!parsed.hostname.includes('twitch.tv')) return null;
-    const pathname = parsed.pathname.slice(1);
-    const parts = pathname.split('/');
-    const firstPart = parts[0]?.toLowerCase();
-    const reserved = ['directory', 'settings', 'subscriptions', 'wallet', 'downloads', 'p', 'search', 'videos', 'moderator', 'popout'];
-    if (firstPart && !reserved.includes(firstPart) && firstPart.length > 0) {
-      return firstPart;
-    }
-  } catch (e) {}
-  return null;
 }
 
 // API-level sub-only entitlement check via Twitch GQL PlaybackAccessToken
