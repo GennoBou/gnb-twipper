@@ -339,7 +339,6 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
       hasAuthToken: !!authToken,
       hasDeviceId: !!deviceId,
       usingClientId: dynamicClientId,
-      authTokenPreview: authToken ? `${authToken.substring(0, 4)}...${authToken.substring(authToken.length - 4)}` : 'NULL',
     });
 
     const headers: Record<string, string> = {
