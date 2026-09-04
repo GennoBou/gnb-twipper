@@ -1,4 +1,4 @@
-import type { AppSettings, StreamInfo, AutoState, ExtensionMessage } from '../types';
+import type { AppSettings, StreamInfo, AutoState, ExtensionMessage, GqlPlaybackAccessTokenResponseItem } from '../types';
 
 console.log('[gnb-twipper] Background Service Worker Initialized');
 
@@ -123,7 +123,7 @@ async function checkSubOnlyAuthViaGql(logins: string[]): Promise<Record<string, 
     const subOnlyMap: Record<string, boolean> = {};
 
     if (Array.isArray(data)) {
-      data.forEach((item: any, idx: number) => {
+      data.forEach((item: GqlPlaybackAccessTokenResponseItem, idx: number) => {
         const login = logins[idx];
         const auth = item?.data?.streamPlaybackAccessToken?.authorization;
         if (login && auth) {
