@@ -1,4 +1,5 @@
 import type { AppSettings, StreamInfo, AutoState, ExtensionMessage } from '../types';
+import { getRotationTargetStreamers as getRotationTargetStreamersUtil, getAutoRotationCandidates as getAutoRotationCandidatesUtil } from './rotation';
 
 console.log('[gnb-twipper] Background Service Worker Initialized');
 
@@ -534,26 +535,12 @@ function stopAutoMode() {
 
 // Helper to get active rotation target streamers for UI display (filtering out user exclusions)
 function getRotationTargetStreamers(): StreamInfo[] {
-  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
-    return liveStreamers;
-  }
-  const excludedLogins = new Set(
-    settings.excludedChannels
-      .filter((item) => item.enabled)
-      .map((item) => item.user_login.toLowerCase())
-  );
-  return liveStreamers.filter(
-    (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
-  );
+  return getRotationTargetStreamersUtil(liveStreamers, settings);
 }
 
 // Helper to get eligible streamers for auto-rotation
 function getAutoRotationCandidates(): StreamInfo[] {
-  const targets = getRotationTargetStreamers();
-  if (settings.skipSubOnlyStreams && !settings.allowSubOnlyFreePreview) {
-    return targets.filter((streamer) => !streamer.is_sub_only);
-  }
-  return targets;
+  return getAutoRotationCandidatesUtil(liveStreamers, settings);
 }
 
 // 配信者一覧の更新や設定変更時に、オートモードの状態（通常巡回 / 待機）を自動判定・遷移
