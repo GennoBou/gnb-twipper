@@ -27,9 +27,7 @@
     autoStartOnLogin: true,
     language: "ja",
     customCss: "",
-    customJs: "",
     customCssEnabled: false,
-    customJsEnabled: false,
   });
 
   let liveStreamers = $state<StreamInfo[]>([]);

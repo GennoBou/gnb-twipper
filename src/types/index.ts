@@ -22,9 +22,7 @@ export interface AppSettings {
   autoStartOnLogin: boolean;   // 起動時にオートモードを自動開始するか
   language: 'ja' | 'en';       // UI言語
   customCss: string;           // カスタムインジェクションCSS
-  customJs: string;            // カスタムインジェクションJS
   customCssEnabled: boolean;
-  customJsEnabled: boolean;
   excludedChannels?: ExcludedChannel[]; // 巡回除外対象リスト
   skipSubOnlyStreams?: boolean; // サブスク限定配信を自動スキップするか
   allowSubOnlyFreePreview?: boolean; // 無料視聴期間中はスキップせずに視聴するか
@@ -49,7 +47,6 @@ export type ExtensionMessage =
   | { type: 'SELECT_STREAMER'; channel: string }
   | { type: 'GET_AUTO_STATE' }
   | { type: 'OPEN_OPTIONS' }
-  | { type: 'EXECUTE_CUSTOM_JS'; code: string }
   | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] }
   | { type: 'DETECTED_SUB_ONLY_LOCK'; channel?: string }
   | { type: 'NAVIGATE_TO_CHANNEL_REPLACE'; channel: string };

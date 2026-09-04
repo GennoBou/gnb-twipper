@@ -4,19 +4,15 @@
   import type { AppSettings, StreamInfo } from "../types";
   import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2 } from "@lucide/svelte";
   import { i18n } from "../i18n.svelte";
-  import * as acorn from "acorn";
 
   const placeholderCssText = "/* 例: nav { display: none !important; } */";
-  const placeholderJsText = "// 例: console.log('gnb-twipper custom script injected');";
 
   let settings = $state<AppSettings>({
     rotationTimeMinutes: 3,
     autoStartOnLogin: true,
     language: "ja",
     customCss: "",
-    customJs: "",
     customCssEnabled: false,
-    customJsEnabled: false,
     excludedChannels: [],
     skipSubOnlyStreams: false,
     allowSubOnlyFreePreview: true,
@@ -26,17 +22,6 @@
   let newExcludedInput = $state("");
   let liveStreamers = $state<StreamInfo[]>([]);
   let isLoaded = $state(false);
-
-  // CSP安全なJS構文チェック関数 (acorn ASTパーサー使用)
-  function checkJsSyntax(code: string): { valid: boolean; error?: string } {
-    if (!code.trim()) return { valid: true };
-    try {
-      acorn.parse(code, { ecmaVersion: "latest", sourceType: "module", allowReturnOutsideFunction: true, allowAwaitOutsideFunction: true, allowImportExportEverywhere: true });
-      return { valid: true };
-    } catch (err: any) {
-      return { valid: false, error: err.message || String(err) };
-    }
-  }
 
   function checkCssSyntax(code: string): { valid: boolean; error?: string } {
     if (!code.trim()) return { valid: true };
@@ -52,7 +37,6 @@
   }
 
   let cssSyntax = $derived(checkCssSyntax(settings.customCss));
-  let jsSyntax = $derived(checkJsSyntax(settings.customJs));
 
   onMount(() => {
     chrome.runtime.sendMessage({ type: "GET_SETTINGS" }, (res) => {
@@ -331,28 +315,6 @@
                 <span class="status-badge success"><CheckCircle2 size={13} /> {i18n.t("noSyntaxErrors")}</span>
               {:else}
                 <span class="status-badge error"><AlertTriangle size={13} /> {i18n.t("syntaxError")} {cssSyntax.error}</span>
-              {/if}
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Custom JS Editor -->
-      <div class="editor-block">
-        <div class="editor-header">
-          <label class="checkbox-label">
-            <input type="checkbox" bind:checked={settings.customJsEnabled} />
-            {i18n.t("customJsLabel")}
-          </label>
-        </div>
-        {#if settings.customJsEnabled}
-          <div transition:slide={{ duration: 220 }}>
-            <textarea bind:value={settings.customJs} placeholder={placeholderJsText} class="code-editor {jsSyntax.valid ? '' : 'has-error'}"></textarea>
-            <div class="checker-status {jsSyntax.valid ? 'valid' : 'invalid'}">
-              {#if jsSyntax.valid}
-                <span class="status-badge success"><CheckCircle2 size={13} /> {i18n.t("noSyntaxErrors")}</span>
-              {:else}
-                <span class="status-badge error"><AlertTriangle size={13} /> {i18n.t("syntaxError")} {jsSyntax.error}</span>
               {/if}
             </div>
           </div>

@@ -12,9 +12,7 @@ let currentSettings: AppSettings = {
   autoStartOnLogin: true,
   language: 'ja',
   customCss: '',
-  customJs: '',
   customCssEnabled: false,
-  customJsEnabled: false,
 };
 let currentAutoState: AutoState = {
   isActive: false,
@@ -162,11 +160,6 @@ function applySettings(newSettings: AppSettings) {
     currentSettings.customCss !== newSettings.customCss ||
     currentSettings.customCssEnabled !== newSettings.customCssEnabled;
 
-  const jsChanged =
-    !currentSettings ||
-    currentSettings.customJs !== newSettings.customJs ||
-    currentSettings.customJsEnabled !== newSettings.customJsEnabled;
-
   // Custom CSS Injection (実際に変更があった場合のみDOM更新)
   if (cssChanged) {
     if (newSettings.customCssEnabled && newSettings.customCss) {
@@ -179,14 +172,6 @@ function applySettings(newSettings: AppSettings) {
     } else if (customStyleElement) {
       customStyleElement.textContent = '';
     }
-  }
-
-  // Custom JS Injection (初回または設定変更時のみスクリプト送信)
-  if (jsChanged && newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
-    safeSendMessage({
-      type: 'EXECUTE_CUSTOM_JS',
-      code: newSettings.customJs,
-    });
   }
 
   currentSettings = newSettings;
