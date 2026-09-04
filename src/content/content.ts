@@ -256,8 +256,13 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
       '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [data-a-target="side-nav-section-recommended-channels"]'
     ));
 
+    const excludedLinks = new Set<HTMLAnchorElement>();
+    excludedSections.forEach((sec) => {
+      sec.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => excludedLinks.add(link));
+    });
+
     const allLinks = Array.from(leftNav.querySelectorAll<HTMLAnchorElement>('a[href]'));
-    cardLinks = allLinks.filter(a => !excludedSections.some(sec => sec.contains(a)));
+    cardLinks = allLinks.filter((a) => !excludedLinks.has(a));
   }
 
   console.log('[gnb-twipper] Candidate links in followed section count:', cardLinks.length);
