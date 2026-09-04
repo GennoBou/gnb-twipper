@@ -812,28 +812,6 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       break;
     }
 
-    case 'EXECUTE_CUSTOM_JS': {
-      if (_sender.tab && _sender.tab.id && message.code) {
-        chrome.scripting.executeScript({
-          target: { tabId: _sender.tab.id },
-          world: 'MAIN',
-          func: (codeToExec: string) => {
-            try {
-              const scriptFun = new Function(codeToExec);
-              scriptFun();
-            } catch (e) {
-              console.error('[gnb-twipper] Custom JS execution error:', e);
-            }
-          },
-          args: [message.code],
-        }).catch((err) => {
-          console.error('[gnb-twipper] chrome.scripting.executeScript error:', err);
-        });
-      }
-      sendResponse({ success: true });
-      break;
-    }
-
     default:
       sendResponse({ success: false });
       break;

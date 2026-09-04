@@ -181,12 +181,20 @@ function applySettings(newSettings: AppSettings) {
     }
   }
 
-  // Custom JS Injection (初回または設定変更時のみスクリプト送信)
-  if (jsChanged && newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
-    safeSendMessage({
-      type: 'EXECUTE_CUSTOM_JS',
-      code: newSettings.customJs,
-    });
+  // Custom JS Injection (実際に変更があった場合のみDOM更新)
+  if (jsChanged) {
+    const existingScript = document.getElementById('gnb-twipper-custom-js');
+    if (existingScript) {
+      existingScript.remove();
+      customScriptElement = null;
+    }
+
+    if (newSettings.customJsEnabled && newSettings.customJs && newSettings.customJs.trim()) {
+      customScriptElement = document.createElement('script');
+      customScriptElement.id = 'gnb-twipper-custom-js';
+      customScriptElement.textContent = newSettings.customJs;
+      (document.head || document.documentElement).appendChild(customScriptElement);
+    }
   }
 
   currentSettings = newSettings;
