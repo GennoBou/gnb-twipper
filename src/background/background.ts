@@ -16,6 +16,22 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
+let cachedExcludedLogins: Set<string> = new Set();
+
+function updateExcludedLoginsCache(): void {
+  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
+    cachedExcludedLogins = new Set();
+    return;
+  }
+  cachedExcludedLogins = new Set(
+    settings.excludedChannels
+      .filter((item) => item.enabled)
+      .map((item) => item.user_login.toLowerCase())
+  );
+}
+
+updateExcludedLoginsCache();
+
 let liveStreamers: StreamInfo[] = [];
 let watchTimeMap: Record<string, number> = {};
 let autoState: AutoState = {
@@ -222,6 +238,7 @@ chrome.storage.local.get(['settings'], async (result) => {
   } else {
     chrome.storage.local.set({ settings });
   }
+  updateExcludedLoginsCache();
 
   const alreadyStarted = await isInitialAutoStarted();
   // Auto-start auto mode if autoStartOnLogin is enabled and not already running / triggered in session
@@ -534,16 +551,11 @@ function stopAutoMode() {
 
 // Helper to get active rotation target streamers for UI display (filtering out user exclusions)
 function getRotationTargetStreamers(): StreamInfo[] {
-  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
+  if (cachedExcludedLogins.size === 0) {
     return liveStreamers;
   }
-  const excludedLogins = new Set(
-    settings.excludedChannels
-      .filter((item) => item.enabled)
-      .map((item) => item.user_login.toLowerCase())
-  );
   return liveStreamers.filter(
-    (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
+    (streamer) => !cachedExcludedLogins.has(streamer.user_login.toLowerCase())
   );
 }
 
@@ -686,6 +698,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
     case 'SAVE_SETTINGS': {
       settings = { ...settings, ...message.settings };
+      updateExcludedLoginsCache();
       chrome.storage.local.set({ settings }).then(() => {
         evaluateAutoState();
         broadcastState();
