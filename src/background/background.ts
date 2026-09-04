@@ -308,6 +308,104 @@ async function getTwitchDeviceId(): Promise<string | null> {
 let lastGqlFetchTime = 0;
 const MIN_GQL_INTERVAL_MS = 5000; // 5秒以内の連続GQLリクエストを抑止
 
+async function sendFollowedLiveGqlRequest(
+  clientId: string,
+  authToken: string | null,
+  deviceId: string | null
+): Promise<Response> {
+  console.log('[gnb-twipper] [GQL Request] Sending request to https://gql.twitch.tv/gql', {
+    time: new Date().toLocaleTimeString(),
+    hasAuthToken: !!authToken,
+    hasDeviceId: !!deviceId,
+    usingClientId: clientId,
+    authTokenPreview: authToken ? `${authToken.substring(0, 4)}...${authToken.substring(authToken.length - 4)}` : 'NULL',
+  });
+
+  const headers: Record<string, string> = {
+    'Client-ID': clientId,
+    'Content-Type': 'text/plain; charset=UTF-8',
+  };
+
+  if (deviceId) {
+    headers['Device-ID'] = deviceId;
+  }
+
+  if (authToken) {
+    headers['Authorization'] = `OAuth ${authToken}`;
+  }
+
+  const bodyPayload = [
+    {
+      operationName: 'GnbFollowsLiveQuery',
+      query: `
+        query GnbFollowsLiveQuery {
+          currentUser {
+            id
+            follows(first: 100) {
+              edges {
+                node {
+                  id
+                  login
+                  displayName
+                  profileImageURL(width: 70)
+                  stream {
+                    id
+                    title
+                    viewersCount
+                    game {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `,
+    },
+  ];
+
+  return fetch('https://gql.twitch.tv/gql', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(bodyPayload),
+  });
+}
+
+function parseFollowedLiveGqlResponse(data: any): StreamInfo[] | null {
+  console.log('[gnb-twipper] GQL raw response structure:', data);
+
+  if (data && Array.isArray(data) && data[0]?.errors) {
+    console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
+  }
+
+  const currentUser = data?.[0]?.data?.currentUser;
+  if (!currentUser) {
+    console.warn('[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered.');
+    return null;
+  }
+
+  const edges = currentUser.follows?.edges || [];
+  const rawFetched: StreamInfo[] = [];
+
+  edges.forEach((edge: any) => {
+    const node = edge?.node;
+    const stream = node?.stream;
+    if (node && stream) {
+      rawFetched.push({
+        user_login: node.login,
+        user_name: node.displayName || node.login,
+        title: stream.title || '',
+        game_name: stream.game?.name || '',
+        profile_image_url: node.profileImageURL || '',
+        viewer_count: stream.viewersCount || 0,
+      });
+    }
+  });
+
+  return rawFetched;
+}
+
 // Fetch followed live channels via Twitch GQL API
 async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
   const now = Date.now();
@@ -334,63 +432,7 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
   try {
     const authToken = await getTwitchAuthToken();
     const deviceId = await getTwitchDeviceId();
-    console.log('[gnb-twipper] [GQL Request] Sending request to https://gql.twitch.tv/gql', {
-      time: new Date().toLocaleTimeString(),
-      hasAuthToken: !!authToken,
-      hasDeviceId: !!deviceId,
-      usingClientId: dynamicClientId,
-      authTokenPreview: authToken ? `${authToken.substring(0, 4)}...${authToken.substring(authToken.length - 4)}` : 'NULL',
-    });
-
-    const headers: Record<string, string> = {
-      'Client-ID': dynamicClientId,
-      'Content-Type': 'text/plain; charset=UTF-8',
-    };
-
-    if (deviceId) {
-      headers['Device-ID'] = deviceId;
-    }
-
-    if (authToken) {
-      headers['Authorization'] = `OAuth ${authToken}`;
-    }
-
-    const bodyPayload = [
-      {
-        operationName: 'GnbFollowsLiveQuery',
-        query: `
-          query GnbFollowsLiveQuery {
-            currentUser {
-              id
-              follows(first: 100) {
-                edges {
-                  node {
-                    id
-                    login
-                    displayName
-                    profileImageURL(width: 70)
-                    stream {
-                      id
-                      title
-                      viewersCount
-                      game {
-                        name
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        `,
-      },
-    ];
-
-    const response = await fetch('https://gql.twitch.tv/gql', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(bodyPayload),
-    });
+    const response = await sendFollowedLiveGqlRequest(dynamicClientId, authToken, deviceId);
 
     if (!response.ok) {
       console.warn(`[gnb-twipper] [GQL Response Error] HTTP ${response.status} ${response.statusText}.`);
@@ -408,36 +450,12 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     console.log('[gnb-twipper] [GQL Response OK] HTTP 200 Success');
 
     const data = await response.json();
-    console.log('[gnb-twipper] GQL raw response structure:', data);
-
-    if (data && Array.isArray(data) && data[0]?.errors) {
-      console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
-    }
-
-    const currentUser = data?.[0]?.data?.currentUser;
-    if (!currentUser) {
-      console.warn('[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered. Requesting DOM scrape fallback.');
+    const rawFetched = parseFollowedLiveGqlResponse(data);
+    if (!rawFetched) {
+      console.warn('[gnb-twipper] Requesting DOM scrape fallback because currentUser is null/missing.');
       requestDomScrapeFromTabs();
       return liveStreamers;
     }
-
-    const edges = currentUser.follows?.edges || [];
-    const rawFetched: StreamInfo[] = [];
-
-    edges.forEach((edge: any) => {
-      const node = edge?.node;
-      const stream = node?.stream;
-      if (node && stream) {
-        rawFetched.push({
-          user_login: node.login,
-          user_name: node.displayName || node.login,
-          title: stream.title || '',
-          game_name: stream.game?.name || '',
-          profile_image_url: node.profileImageURL || '',
-          viewer_count: stream.viewersCount || 0,
-        });
-      }
-    });
 
     // Twitch GQL API (PlaybackAccessToken) で各ライブ配信のサブスク視聴権限・ロックを一括判定
     const logins = rawFetched.map((s) => s.user_login);
