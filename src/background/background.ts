@@ -16,6 +16,22 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
+let excludedLoginsSet: Set<string> = new Set();
+
+function updateExcludedLoginsSet(): void {
+  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
+    excludedLoginsSet = new Set();
+    return;
+  }
+  excludedLoginsSet = new Set(
+    settings.excludedChannels
+      .filter((item) => item.enabled)
+      .map((item) => item.user_login.toLowerCase())
+  );
+}
+
+updateExcludedLoginsSet();
+
 let liveStreamers: StreamInfo[] = [];
 let watchTimeMap: Record<string, number> = {};
 let autoState: AutoState = {
@@ -222,6 +238,7 @@ chrome.storage.local.get(['settings'], async (result) => {
   } else {
     chrome.storage.local.set({ settings });
   }
+  updateExcludedLoginsSet();
 
   const alreadyStarted = await isInitialAutoStarted();
   // Auto-start auto mode if autoStartOnLogin is enabled and not already running / triggered in session
@@ -534,16 +551,11 @@ function stopAutoMode() {
 
 // Helper to get active rotation target streamers for UI display (filtering out user exclusions)
 function getRotationTargetStreamers(): StreamInfo[] {
-  if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
+  if (excludedLoginsSet.size === 0) {
     return liveStreamers;
   }
-  const excludedLogins = new Set(
-    settings.excludedChannels
-      .filter((item) => item.enabled)
-      .map((item) => item.user_login.toLowerCase())
-  );
   return liveStreamers.filter(
-    (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
+    (streamer) => !excludedLoginsSet.has(streamer.user_login.toLowerCase())
   );
 }
 
@@ -686,6 +698,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
 
     case 'SAVE_SETTINGS': {
       settings = { ...settings, ...message.settings };
+      updateExcludedLoginsSet();
       chrome.storage.local.set({ settings }).then(() => {
         evaluateAutoState();
         broadcastState();
