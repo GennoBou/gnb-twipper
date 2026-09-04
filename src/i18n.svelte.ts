@@ -8,7 +8,7 @@ export type LocaleDictionary = Record<string, string>;
 const translations: Record<string, LocaleDictionary> = { en, ja };
 
 // 初期言語の自動判定 (標準は英語、日本語環境は日本語)
-function detectInitialLanguage(): string {
+export function detectInitialLanguage(): string {
   try {
     const browserLang = (typeof chrome !== "undefined" && chrome.i18n?.getUILanguage?.()) || navigator.language || "en";
     return browserLang.toLowerCase().startsWith("ja") ? "ja" : "en";
