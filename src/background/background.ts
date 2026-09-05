@@ -180,15 +180,9 @@ function startWatchTimer() {
         const key = activeChannel.toLowerCase();
         watchTimeMap[key] = (watchTimeMap[key] || 0) + 1;
 
-        let updated = false;
-        liveStreamers.forEach((s) => {
-          if (s.user_login.toLowerCase() === key) {
-            s.watch_time_seconds = watchTimeMap[key];
-            updated = true;
-          }
-        });
-
-        if (updated) {
+        const targetStreamer = liveStreamers.find((s) => s.user_login.toLowerCase() === key);
+        if (targetStreamer) {
+          targetStreamer.watch_time_seconds = watchTimeMap[key];
           broadcastState();
         }
       }
