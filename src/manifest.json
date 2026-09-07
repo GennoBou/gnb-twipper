@@ -16,6 +16,7 @@
     "storage",
     "alarms",
     "scripting",
+    "userScripts",
     "cookies",
     "tabs",
     "webRequest"
