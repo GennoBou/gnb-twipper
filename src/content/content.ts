@@ -178,17 +178,15 @@ function applySettings(newSettings: AppSettings) {
   currentSettings = newSettings;
 }
 
-function scrapeLiveStreamersFromDOM(): StreamInfo[] {
-  const streamers: StreamInfo[] = [];
+// Helper to clean accessibility tooltips or right-arrow instructions
+function cleanText(str: string | null | undefined): string {
+  if (!str) return '';
+  if (str.includes('詳細情報') || str.includes('詳細') || str.includes('Press right arrow') || str.includes('押すと')) return '';
+  return str.trim();
+}
 
-  // Helper to clean accessibility tooltips or right-arrow instructions
-  const cleanText = (str: string | null | undefined): string => {
-    if (!str) return '';
-    if (str.includes('詳細情報') || str.includes('詳細') || str.includes('Press right arrow') || str.includes('押すと')) return '';
-    return str.trim();
-  };
-
-  // Find Left Navigation Container specifically (STRICTLY exclude right chat panel)
+// Find Left Navigation Container specifically (STRICTLY exclude right chat panel)
+function findLeftSideNav(): Element | null {
   let leftNav =
     document.querySelector('[data-a-target="side-nav-bar"]') ||
     document.querySelector('nav[aria-label*="左ナビゲーション"]') ||
@@ -207,11 +205,11 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
     }) || null;
   }
 
-  if (!leftNav) {
-    console.warn('[gnb-twipper] Left SideNav container not found on page');
-    return [];
-  }
+  return leftNav;
+}
 
+// Locate Followed Channels Section and return candidate anchor links
+function getFollowedCardLinks(leftNav: Element): HTMLAnchorElement[] {
   // Dump sections info from user's live browser console for exact verification
   const sectionsInfo = Array.from(leftNav.querySelectorAll('div[aria-label], section[aria-label], [data-a-target]')).map(el => ({
     tag: el.tagName,
@@ -229,132 +227,146 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
     leftNav.querySelector('[data-a-target="side-nav-section-followed-channels"]') ||
     leftNav.querySelector('[data-test-selector="followed-channels"]');
 
-  let cardLinks: HTMLAnchorElement[] = [];
-
   if (followedSection) {
     console.log('[gnb-twipper] Found EXACT followedSection container:', followedSection.getAttribute('aria-label'));
-    cardLinks = Array.from(followedSection.querySelectorAll<HTMLAnchorElement>('a[href]'));
-  } else {
-    console.log('[gnb-twipper] followedSection container not matched, filtering by non-followed sections');
-    
-    // Exclude recommended live channels and recommended categories sections
-    const excludedSections = Array.from(leftNav.querySelectorAll(
-      '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [data-a-target="side-nav-section-recommended-channels"]'
-    ));
-
-    const excludedLinks = new Set<HTMLAnchorElement>();
-    excludedSections.forEach((sec) => {
-      sec.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => excludedLinks.add(link));
-    });
-
-    const allLinks = Array.from(leftNav.querySelectorAll<HTMLAnchorElement>('a[href]'));
-    cardLinks = allLinks.filter((a) => !excludedLinks.has(a));
+    return Array.from(followedSection.querySelectorAll<HTMLAnchorElement>('a[href]'));
   }
 
+  console.log('[gnb-twipper] followedSection container not matched, filtering by non-followed sections');
+
+  // Exclude recommended live channels and recommended categories sections
+  const excludedSections = Array.from(leftNav.querySelectorAll(
+    '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [data-a-target="side-nav-section-recommended-channels"]'
+  ));
+
+  const excludedLinks = new Set<HTMLAnchorElement>();
+  excludedSections.forEach((sec) => {
+    sec.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => excludedLinks.add(link));
+  });
+
+  const allLinks = Array.from(leftNav.querySelectorAll<HTMLAnchorElement>('a[href]'));
+  return allLinks.filter((a) => !excludedLinks.has(a));
+}
+
+// Parse a single streamer element card into StreamInfo if valid and live
+function parseStreamerFromLink(a: HTMLAnchorElement): StreamInfo | null {
+  const rawHref = a.getAttribute('href') || a.href;
+  if (!rawHref) return null;
+
+  let path = '';
+  try {
+    const url = new URL(rawHref, window.location.origin);
+    path = url.pathname;
+  } catch (e) {
+    path = rawHref;
+  }
+
+  if (
+    !path ||
+    path === '/' ||
+    path.startsWith('/directory') ||
+    path.startsWith('/videos') ||
+    path.startsWith('/settings') ||
+    path.startsWith('/wallet') ||
+    path.startsWith('/prime') ||
+    path.startsWith('/turbo') ||
+    path.startsWith('/subscriptions') ||
+    path.startsWith('/drops') ||
+    path.startsWith('/friends') ||
+    path.startsWith('/p/') ||
+    path.startsWith('/popout')
+  ) {
+    return null;
+  }
+
+  const userLogin = path.replace(/^\//, '').split('/')[0].toLowerCase();
+  if (!userLogin || userLogin.includes('.')) return null;
+
+  // Filter OUT offline channels!
+  // Strict Twitch CSS class offline check for both Expanded and Collapsed SideNav
+  const isOfflineAvatar = !!a.querySelector('.side-nav-card__avatar--offline, .tw-avatar--offline');
+  const isOfflineText = a.textContent?.includes('オフライン') || a.textContent?.includes('Offline');
+
+  if (isOfflineAvatar || isOfflineText) {
+    console.log('[gnb-twipper] Skipping offline channel:', userLogin);
+    return null;
+  }
+
+  const imgEl = a.querySelector<HTMLImageElement>('img');
+  const profileImageUrl = imgEl?.src || '';
+
+  const rawAria = a.getAttribute('aria-label') || a.getAttribute('title') || '';
+  let extractedNameFromAria = '';
+  if (rawAria) {
+    // "表示名 (login_id)" や "表示名" のパターンから表示名を抽出
+    const match = rawAria.match(/^([^(]+)\s*\([^)]+\)/);
+    if (match) {
+      extractedNameFromAria = cleanText(match[1]);
+    } else {
+      extractedNameFromAria = cleanText(rawAria.split('\n')[0]);
+    }
+  }
+
+  const titleEl =
+    a.querySelector('[data-a-target="side-nav-title"]') ||
+    a.querySelector('.side-nav-card__title') ||
+    a.querySelector('p') ||
+    a.querySelector('span');
+
+  let userName = cleanText(titleEl?.textContent);
+  if (!userName && extractedNameFromAria) {
+    userName = extractedNameFromAria;
+  }
+  if (!userName && imgEl?.alt) {
+    userName = cleanText(imgEl.alt);
+  }
+  if (!userName) {
+    userName = userLogin;
+  }
+
+  const gameEl =
+    a.querySelector('[data-a-target="side-nav-game-title"]') ||
+    a.querySelector('.side-nav-card__game');
+  const gameName = cleanText(gameEl?.textContent);
+
+  const recapEl =
+    a.querySelector('[data-a-target="side-nav-live-recap"]') ||
+    a.querySelector('.side-nav-card__live-stat');
+
+  let viewerCount = 0;
+  const fullText = (recapEl?.textContent || a.getAttribute('aria-label') || a.textContent || '').replace(/,/g, '');
+  const numMatch = fullText.match(/(\d+(\.\d+)?)/);
+  if (numMatch) {
+    let val = parseFloat(numMatch[1]);
+    if (fullText.includes('万')) val *= 10000;
+    else if (fullText.toLowerCase().includes('k')) val *= 1000;
+    viewerCount = Math.round(val);
+  }
+
+  return {
+    user_login: userLogin,
+    user_name: userName,
+    game_name: gameName,
+    profile_image_url: profileImageUrl,
+    viewer_count: viewerCount,
+  };
+}
+
+function scrapeLiveStreamersFromDOM(): StreamInfo[] {
+  const leftNav = findLeftSideNav();
+  if (!leftNav) {
+    console.warn('[gnb-twipper] Left SideNav container not found on page');
+    return [];
+  }
+
+  const cardLinks = getFollowedCardLinks(leftNav);
   console.log('[gnb-twipper] Candidate links in followed section count:', cardLinks.length);
 
+  const streamers: StreamInfo[] = [];
   cardLinks.forEach((a) => {
-    const rawHref = a.getAttribute('href') || a.href;
-    if (!rawHref) return;
-
-    let path = '';
-    try {
-      const url = new URL(rawHref, window.location.origin);
-      path = url.pathname;
-    } catch (e) {
-      path = rawHref;
-    }
-
-    if (
-      !path ||
-      path === '/' ||
-      path.startsWith('/directory') ||
-      path.startsWith('/videos') ||
-      path.startsWith('/settings') ||
-      path.startsWith('/wallet') ||
-      path.startsWith('/prime') ||
-      path.startsWith('/turbo') ||
-      path.startsWith('/subscriptions') ||
-      path.startsWith('/drops') ||
-      path.startsWith('/friends') ||
-      path.startsWith('/p/') ||
-      path.startsWith('/popout')
-    ) {
-      return;
-    }
-
-    const userLogin = path.replace(/^\//, '').split('/')[0].toLowerCase();
-    if (!userLogin || userLogin.includes('.')) return;
-
-    // Filter OUT offline channels!
-    // Strict Twitch CSS class offline check for both Expanded and Collapsed SideNav
-    const isOfflineAvatar = !!a.querySelector('.side-nav-card__avatar--offline, .tw-avatar--offline');
-    const isOfflineText = a.textContent?.includes('オフライン') || a.textContent?.includes('Offline');
-
-    if (isOfflineAvatar || isOfflineText) {
-      console.log('[gnb-twipper] Skipping offline channel:', userLogin);
-      return;
-    }
-
-    const imgEl = a.querySelector<HTMLImageElement>('img');
-    const profileImageUrl = imgEl?.src || '';
-
-    const rawAria = a.getAttribute('aria-label') || a.getAttribute('title') || '';
-    let extractedNameFromAria = '';
-    if (rawAria) {
-      // "表示名 (login_id)" や "表示名" のパターンから表示名を抽出
-      const match = rawAria.match(/^([^(]+)\s*\([^)]+\)/);
-      if (match) {
-        extractedNameFromAria = cleanText(match[1]);
-      } else {
-        extractedNameFromAria = cleanText(rawAria.split('\n')[0]);
-      }
-    }
-
-    const titleEl =
-      a.querySelector('[data-a-target="side-nav-title"]') ||
-      a.querySelector('.side-nav-card__title') ||
-      a.querySelector('p') ||
-      a.querySelector('span');
-
-    let userName = cleanText(titleEl?.textContent);
-    if (!userName && extractedNameFromAria) {
-      userName = extractedNameFromAria;
-    }
-    if (!userName && imgEl?.alt) {
-      userName = cleanText(imgEl.alt);
-    }
-    if (!userName) {
-      userName = userLogin;
-    }
-
-    const gameEl =
-      a.querySelector('[data-a-target="side-nav-game-title"]') ||
-      a.querySelector('.side-nav-card__game');
-    const gameName = cleanText(gameEl?.textContent);
-
-    const recapEl =
-      a.querySelector('[data-a-target="side-nav-live-recap"]') ||
-      a.querySelector('.side-nav-card__live-stat');
-
-    let viewerCount = 0;
-    const fullText = (recapEl?.textContent || a.getAttribute('aria-label') || a.textContent || '').replace(/,/g, '');
-    const numMatch = fullText.match(/(\d+(\.\d+)?)/);
-    if (numMatch) {
-      let val = parseFloat(numMatch[1]);
-      if (fullText.includes('万')) val *= 10000;
-      else if (fullText.toLowerCase().includes('k')) val *= 1000;
-      viewerCount = Math.round(val);
-    }
-
-    if (!streamers.some((s) => s.user_login.toLowerCase() === userLogin)) {
-      streamers.push({
-        user_login: userLogin,
-        user_name: userName,
-        game_name: gameName,
-        profile_image_url: profileImageUrl,
-        viewer_count: viewerCount,
-      });
+    const streamer = parseStreamerFromLink(a);
+    if (streamer && !streamers.some((s) => s.user_login.toLowerCase() === streamer.user_login)) {
+      streamers.push(streamer);
     }
   });
 
