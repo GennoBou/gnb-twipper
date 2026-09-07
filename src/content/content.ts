@@ -499,11 +499,69 @@ function checkSubOnlyLock() {
   }
 }
 
-// Periodic timer to monitor player lock state (every 1.5s)
+// Offline stream detection and auto-skip logic
+let lastOfflineChannel: string | null = null;
+
+function checkOfflineState() {
+  const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
+  if (!currentPath || currentPath.includes('.')) return;
+
+  const reserved = ['directory', 'settings', 'subscriptions', 'wallet', 'downloads', 'p', 'search', 'videos', 'moderator', 'popout'];
+  if (reserved.includes(currentPath)) return;
+
+  // 1. 明確なオフライン要素のセレクタをチェック
+  const offlineElement =
+    document.querySelector('[data-a-target="player-overlay-offline"]') ||
+    document.querySelector('[data-a-target="user-channel-offline-hero"]') ||
+    document.querySelector('.channel-status-info--offline') ||
+    document.querySelector('.channel-root--offline') ||
+    document.querySelector('[data-test-selector="offline-channel-header"]');
+
+  let isOffline = !!offlineElement;
+
+  if (!isOffline) {
+    // 2. チャンネル情報カードやステータスバッジ内の「オフライン」テキストチェック
+    const statusIndicators = Array.from(document.querySelectorAll(
+      '[data-test-selector="stream-info-card-component__subtitle"], .tw-channel-status-text-indicator, [data-a-target="channel-header-avatar"] ~ div, .channel-header'
+    ));
+
+    for (const el of statusIndicators) {
+      const text = el.textContent?.trim() || '';
+      if (text === 'オフライン' || text === 'Offline' || text.includes('オフラインです') || text.includes('currently offline')) {
+        isOffline = true;
+        break;
+      }
+    }
+  }
+
+  // 3. ライブインジケーター（LIVEバッジ）が表示されている場合はオフラインではないと判断
+  const liveIndicator = document.querySelector('[data-a-target="live-indicator"], .tw-channel-status-indicator--live');
+  if (liveIndicator) {
+    isOffline = false;
+  }
+
+  if (isOffline) {
+    if (lastOfflineChannel !== currentPath) {
+      lastOfflineChannel = currentPath;
+      console.log(`[gnb-twipper] Detected offline stream on @${currentPath}. Sending DETECTED_OFFLINE to background.`);
+      safeSendMessage({
+        type: 'DETECTED_OFFLINE',
+        channel: currentPath,
+      });
+    }
+  } else {
+    if (lastOfflineChannel === currentPath) {
+      lastOfflineChannel = null;
+    }
+  }
+}
+
+// Periodic timer to monitor player lock and offline state (every 1.5s)
 if (typeof window !== 'undefined') {
   window.setInterval(() => {
     try {
       checkSubOnlyLock();
+      checkOfflineState();
     } catch (e) {
       // Ignore background context invalidations
     }

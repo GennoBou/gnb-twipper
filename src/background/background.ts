@@ -17,6 +17,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   allowSubOnlyFreePreview: true,
 };
 
+const INITIAL_PRIORITY_WATCH_TIME_SECONDS = 600; // 10分 (初期目標視聴時間: 未視聴・新規配信者の優先巡回基準)
+
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let cachedExcludedLogins: Set<string> = new Set();
 
@@ -541,6 +543,7 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
 
     liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
+    resetRefreshAlarm();
     evaluateAutoState();
 
     if (fetchedStreamers.length === 0) {
@@ -554,6 +557,11 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     requestDomScrapeFromTabs();
     return liveStreamers;
   }
+}
+
+// リスト更新が行われたタイミングで2分定期アラームをリセット
+function resetRefreshAlarm() {
+  chrome.alarms.create('refreshLiveStreamers', { delayInMinutes: 2, periodInMinutes: 2 });
 }
 
 function startTimer() {
@@ -678,18 +686,44 @@ function evaluateAutoState() {
   broadcastState();
 }
 
+// Helper to select the next streamer using Smart Round-Robin
+function selectNextStreamer(candidates: StreamInfo[], currentLogin: string): StreamInfo {
+  // 候補者が2人以上いる場合は、直前に見ていた配信者を今回の選定対象から除外して同一人物の連続を防止
+  const otherCandidates = candidates.filter(
+    (s) => s.user_login.toLowerCase() !== currentLogin.toLowerCase()
+  );
+
+  const pool = otherCandidates.length > 0 ? otherCandidates : candidates;
+
+  // 1. 初期目標未達グループ (累積視聴秒数 < 600秒)
+  const underTargetCandidates = pool.filter(
+    (s) => (s.watch_time_seconds || 0) < INITIAL_PRIORITY_WATCH_TIME_SECONDS
+  );
+
+  if (underTargetCandidates.length > 0) {
+    // 未達者の中で、視聴時間が最も少ない人（未視聴・新規枠）を最優先 (同点ならリスト順を維持)
+    const sortedUnder = [...underTargetCandidates].sort(
+      (a, b) => (a.watch_time_seconds || 0) - (b.watch_time_seconds || 0)
+    );
+    return sortedUnder[0];
+  }
+
+  // 2. 全員が初期目標を満たしている場合は、直前の人を除いたプールの中で最も視聴時間が少ない人（均等ローテーション）を選択
+  const sortedPool = [...pool].sort(
+    (a, b) => (a.watch_time_seconds || 0) - (b.watch_time_seconds || 0)
+  );
+  return sortedPool[0];
+}
+
 // Rotate to next channel in Queue
 async function rotateToNextChannel() {
-  if (liveStreamers.length === 0) {
-    await fetchFollowedLiveChannels();
-  }
+  // スキップ直前に最新の配信中リストを即時取得して最新化
+  await fetchFollowedLiveChannels();
 
   const candidates = getAutoRotationCandidates();
 
   if (candidates.length >= 2) {
-    const currentIndex = candidates.findIndex((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase());
-    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % candidates.length : 0;
-    const nextStreamer = candidates[nextIndex];
+    const nextStreamer = selectNextStreamer(candidates, autoState.currentChannel);
 
     autoState.isStandby = false;
     autoState.currentChannel = nextStreamer.user_login;
@@ -824,6 +858,26 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       break;
     }
 
+    case 'DETECTED_OFFLINE': {
+      console.log('[gnb-twipper] Offline stream detected on channel:', message.channel);
+      if (message.channel) {
+        const targetLogin = message.channel.toLowerCase();
+        const prevCount = liveStreamers.length;
+        liveStreamers = liveStreamers.filter((s) => s.user_login.toLowerCase() !== targetLogin);
+        delete watchTimeMap[targetLogin];
+        if (liveStreamers.length !== prevCount) {
+          console.log(`[gnb-twipper] Removed offline streamer @${targetLogin} from liveStreamers (Remaining: ${liveStreamers.length})`);
+          broadcastState();
+        }
+      }
+      if (autoState.isActive) {
+        console.log('[gnb-twipper] Auto-skipping offline channel...');
+        rotateToNextChannel();
+      }
+      sendResponse({ success: true });
+      break;
+    }
+
     case 'SELECT_STREAMER': {
       autoState.currentChannel = message.channel;
       navigateToChannel(message.channel);
@@ -870,6 +924,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             };
           });
           liveStreamers = attachWatchTimeAndCleanup(updatedStreamers);
+          resetRefreshAlarm();
           evaluateAutoState();
           broadcastState();
         });
