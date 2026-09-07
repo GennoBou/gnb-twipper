@@ -35,7 +35,18 @@ function updateExcludedLoginsCache(): void {
 updateExcludedLoginsCache();
 
 let liveStreamers: StreamInfo[] = [];
-let watchTimeMap: Record<string, number> = {};
+export let watchTimeMap: Record<string, number> = {};
+
+export function setWatchTimeMap(map: Record<string, number>) {
+  for (const key of Object.keys(watchTimeMap)) {
+    delete watchTimeMap[key];
+  }
+  Object.assign(watchTimeMap, map);
+}
+
+export function getWatchTimeMap(): Record<string, number> {
+  return watchTimeMap;
+}
 let autoState: AutoState = {
   isActive: false,
   isStandby: false,
@@ -144,7 +155,7 @@ async function checkSubOnlyAuthViaGql(logins: string[]): Promise<Record<string, 
   }
 }
 
-function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
+export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
   const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
   
   // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
