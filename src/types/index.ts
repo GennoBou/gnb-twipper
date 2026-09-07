@@ -39,6 +39,18 @@ export interface AutoState {
   nextChannel?: string;
 }
 
+export interface GqlPlaybackAccessTokenResponseItem {
+  data?: {
+    streamPlaybackAccessToken?: {
+      authorization?: {
+        isForbidden?: boolean;
+        forbiddenReasonCode?: string;
+      };
+    };
+  };
+  errors?: unknown[];
+}
+
 export type ExtensionMessage =
   | { type: 'GET_SETTINGS' }
   | { type: 'SAVE_SETTINGS'; settings: Partial<AppSettings> }
