@@ -26,3 +26,6 @@ Desktop.ini
 /gnb-twipper.exe
 /gnb-twipper
 /vendor/
+
+# Antigravity / Gemini internal
+.gemini/
