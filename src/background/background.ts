@@ -57,6 +57,8 @@ let autoState: AutoState = {
   currentChannel: '',
 };
 
+let userManuallyStopped = false; // ユーザーが手動でオートモードを停止したフラグ
+
 let countdownTimer: number | null = null;
 let watchTimer: number | null = null;
 
@@ -591,6 +593,7 @@ function stopTimer() {
 
 // Start Auto Rotation Mode
 function startAutoMode(initialChannel?: string) {
+  userManuallyStopped = false;
   markInitialAutoStarted();
   autoState.isActive = true;
 
@@ -610,8 +613,11 @@ function startAutoMode(initialChannel?: string) {
     startTimer();
   } else if (candidates.length === 1) {
     autoState.isStandby = true;
-    autoState.currentChannel = candidates[0].user_login;
-    navigateToChannel(candidates[0].user_login);
+    const singleStreamer = candidates[0].user_login;
+    if (autoState.currentChannel.toLowerCase() !== singleStreamer.toLowerCase()) {
+      autoState.currentChannel = singleStreamer;
+      navigateToChannel(singleStreamer);
+    }
     stopTimer();
   } else {
     autoState.isStandby = true;
@@ -623,6 +629,7 @@ function startAutoMode(initialChannel?: string) {
 
 // Stop Auto Mode (ユーザーによる手動停止)
 function stopAutoMode() {
+  userManuallyStopped = true;
   markInitialAutoStarted();
   autoState.isActive = false;
   autoState.isStandby = false;
@@ -739,15 +746,36 @@ async function rotateToNextChannel() {
 // Navigate Twitch tab (履歴を増やさずに上書き遷移)
 function navigateToChannel(channel: string) {
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
-    if (tabs.length > 0 && tabs[0].id) {
-      const tabId = tabs[0].id;
+    if (tabs.length > 0) {
+      // アクティブなTwitchタブを優先、なければ先頭のタブ
+      const targetTab = tabs.find((t) => t.active) || tabs[0];
+      if (!targetTab || !targetTab.id) return;
+
+      const tabId = targetTab.id;
+      const targetChannelLower = channel.toLowerCase();
+
+      // すでに目的のチャンネルを開いている場合はナビゲーション不要
+      if (targetTab.url) {
+        const currentChannel = extractChannelFromUrl(targetTab.url);
+        if (currentChannel && currentChannel.toLowerCase() === targetChannelLower) {
+          console.log(`[gnb-twipper] Tab is already on target channel @${channel}. Skipping navigation.`);
+          return;
+        }
+      }
+
       const targetUrl = `https://www.twitch.tv/${channel}`;
       chrome.tabs
         .sendMessage(tabId, {
           type: 'NAVIGATE_TO_CHANNEL_REPLACE',
           channel,
         })
+        .then((res) => {
+          if (res && res.skipped) {
+            console.log(`[gnb-twipper] Navigation skipped by content script for @${channel}.`);
+          }
+        })
         .catch(() => {
+          // コンテンツスクリプト未読み込み等の場合にフォールバック
           chrome.tabs.update(tabId, { url: targetUrl });
         });
     }
@@ -933,10 +961,14 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
           zeroStreamerCount = 0;
           if (domScrapeRetryTimer) clearTimeout(domScrapeRetryTimer);
 
-          // autoStartOnLoginが有効で、初期読み込み遅延等によりオートモードが誤停止していた場合は自動再開
-          if (settings.autoStartOnLogin && !autoState.isActive) {
-            console.log('[gnb-twipper] Streamers successfully retrieved from DOM. Resuming Auto Mode.');
-            startAutoMode();
+          // autoStartOnLoginが有効で、かつユーザーが手動停止しておらず、セッション初回起動がまだの場合のみ自動開始
+          if (settings.autoStartOnLogin && !autoState.isActive && !userManuallyStopped) {
+            isInitialAutoStarted().then((alreadyStarted) => {
+              if (!alreadyStarted && !autoState.isActive && !userManuallyStopped) {
+                console.log('[gnb-twipper] Streamers successfully retrieved from DOM. Initial auto-start triggered.');
+                startAutoMode();
+              }
+            });
           }
         } else {
           zeroStreamerCount += 1;

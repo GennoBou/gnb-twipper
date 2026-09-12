@@ -385,7 +385,7 @@ function performAndSendDomScrape() {
 
 // Listen for updates or scrape requests from background
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       if (msg.type === 'AUTO_STATE_UPDATE') {
         if (msg.autoState) currentAutoState = msg.autoState;
@@ -396,14 +396,30 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         performAndSendDomScrape();
       } else if (msg.type === 'NAVIGATE_TO_CHANNEL_REPLACE') {
         if (msg.channel) {
+          const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
+          const targetChannel = msg.channel.toLowerCase();
+
+          // すでに同一チャンネルを視聴中の場合は再遷移を行わない
+          if (currentPath === targetChannel) {
+            console.log(`[gnb-twipper] Already on channel @${msg.channel}. Skipping navigation.`);
+            if (sendResponse) sendResponse({ success: true, skipped: true });
+            return true;
+          }
+
           const targetUrl = `https://www.twitch.tv/${msg.channel}`;
-          // 履歴を増やさずに現在の履歴エントリを上書きして遷移
-          window.location.replace(targetUrl);
+          if (sendResponse) sendResponse({ success: true });
+
+          // Background側がレスポンスを受け取ってから履歴を増やさずに上書き遷移
+          setTimeout(() => {
+            window.location.replace(targetUrl);
+          }, 50);
+          return true;
         }
       }
     } catch (e) {
       // Context invalidated
     }
+    return false;
   });
 }
 
