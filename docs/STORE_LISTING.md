@@ -42,7 +42,7 @@ This document contains the official metadata, short descriptions, detailed descr
 
 ---
 
-*Advanced Customization Note*: Supports optional custom styling and script adjustments for tailored viewing setups
+*Advanced Customization Note*: Supports optional custom styling and script adjustments for tailored viewing setups (Note: Due to browser security requirements, please enable "Allow user scripts" in the extension's Details settings to run custom JavaScript).
 ---
 
 ## 2. Firefox Add-ons (AMO) Listing

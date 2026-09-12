@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { slide } from "svelte/transition";
   import type { AppSettings, StreamInfo } from "../types";
-  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2 } from "@lucide/svelte";
+  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2, RefreshCw } from "@lucide/svelte";
   import { i18n } from "../i18n.svelte";
   import { extractUsername } from "../utils/username";
   import * as acorn from "acorn";
@@ -30,6 +30,19 @@
 
   let userScriptsAllowed = $state(true);
   let userScriptsError = $state<string | null>(null);
+  let isCheckingUserScripts = $state(false);
+
+  function checkUserScripts(callback?: () => void) {
+    isCheckingUserScripts = true;
+    chrome.runtime.sendMessage({ type: "CHECK_USER_SCRIPTS_STATUS" }, (statusRes) => {
+      isCheckingUserScripts = false;
+      if (!chrome.runtime.lastError && statusRes) {
+        userScriptsAllowed = statusRes.allowed;
+        userScriptsError = statusRes.error || null;
+      }
+      if (callback) callback();
+    });
+  }
 
   // CSP安全なJS構文チェック関数 (acorn ASTパーサー使用)
   function checkJsSyntax(code: string): { valid: boolean; error?: string } {
@@ -75,11 +88,7 @@
         liveStreamers = res.liveStreamers;
       }
 
-      chrome.runtime.sendMessage({ type: "CHECK_USER_SCRIPTS_STATUS" }, (statusRes) => {
-        if (!chrome.runtime.lastError && statusRes) {
-          userScriptsAllowed = statusRes.allowed;
-          userScriptsError = statusRes.error || null;
-        }
+      checkUserScripts(() => {
         setTimeout(() => {
           isLoaded = true;
         }, 100);
@@ -339,8 +348,23 @@
 
         {#if !userScriptsAllowed}
           <div class="devmode-notice">
-            <AlertTriangle size={15} />
-            <span>{i18n.t("customJsDevModeRequired")}</span>
+            <div class="notice-icon">
+              <AlertTriangle size={16} />
+            </div>
+            <div class="notice-content">
+              <p class="notice-text">{i18n.t("customJsDevModeRequired")}</p>
+              {#if userScriptsError}
+                <p class="notice-detail">Error: {userScriptsError}</p>
+              {/if}
+              <button type="button" class="btn-check-status" onclick={() => checkUserScripts()} disabled={isCheckingUserScripts}>
+                {#if isCheckingUserScripts}
+                  <Loader2 size={13} class="spin" />
+                {:else}
+                  <RefreshCw size={13} />
+                {/if}
+                <span>{i18n.t("customJsCheckStatusButton")}</span>
+              </button>
+            </div>
           </div>
         {:else if settings.customJsEnabled}
           <div transition:slide={{ duration: 220 }}>
@@ -515,8 +539,8 @@
 
   .devmode-notice {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
     margin-top: 8px;
     padding: 10px 12px;
     background: rgba(234, 179, 8, 0.1);
@@ -525,6 +549,60 @@
     color: #fde047;
     font-size: 12px;
     line-height: 1.4;
+  }
+
+  .notice-icon {
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .notice-content {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-grow: 1;
+  }
+
+  .notice-text {
+    margin: 0;
+  }
+
+  .notice-detail {
+    margin: 0;
+    font-family: monospace;
+    font-size: 11px;
+    opacity: 0.85;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .btn-check-status {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+    padding: 4px 10px;
+    background: rgba(234, 179, 8, 0.2);
+    border: 1px solid rgba(234, 179, 8, 0.4);
+    border-radius: 4px;
+    color: #fef08a;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .btn-check-status:hover:not(:disabled) {
+    background: rgba(234, 179, 8, 0.3);
+    border-color: rgba(234, 179, 8, 0.6);
+  }
+
+  .btn-check-status:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .help-text {
