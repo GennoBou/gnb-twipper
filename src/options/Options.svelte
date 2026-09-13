@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { slide } from "svelte/transition";
   import type { AppSettings, StreamInfo } from "../types";
-  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2, RefreshCw } from "@lucide/svelte";
+  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2, RefreshCw, ChevronDown } from "@lucide/svelte";
   import { i18n } from "../i18n.svelte";
   import { extractUsername } from "../utils/username";
   import * as acorn from "acorn";
@@ -31,6 +31,7 @@
   let userScriptsAllowed = $state(true);
   let userScriptsError = $state<string | null>(null);
   let isCheckingUserScripts = $state(false);
+  let isNoticeExpanded = $state(false);
 
   function checkUserScripts(callback?: () => void) {
     isCheckingUserScripts = true;
@@ -242,7 +243,6 @@
 
     <section class="card">
       <h2><UserX size={18} /> {i18n.t("excludedChannelsLabel")}</h2>
-      <p class="help-text">{i18n.t("excludedChannelsDesc")}</p>
 
       <!-- Sub-Only Stream Controls -->
       <div class="sub-only-controls">
@@ -266,6 +266,8 @@
       </div>
 
       <hr class="section-divider" />
+
+      <p class="help-text">{i18n.t("excludedChannelsDesc")}</p>
 
       <div class="add-exclusion-form">
         <div class="input-wrapper">
@@ -348,23 +350,39 @@
 
         {#if !userScriptsAllowed}
           <div class="devmode-notice">
-            <div class="notice-icon">
-              <AlertTriangle size={16} />
-            </div>
-            <div class="notice-content">
-              <p class="notice-text">{i18n.t("customJsDevModeRequired")}</p>
-              {#if userScriptsError}
-                <p class="notice-detail">Error: {userScriptsError}</p>
-              {/if}
-              <button type="button" class="btn-check-status" onclick={() => checkUserScripts()} disabled={isCheckingUserScripts}>
-                {#if isCheckingUserScripts}
-                  <Loader2 size={13} class="spin" />
-                {:else}
-                  <RefreshCw size={13} />
+            <button
+              type="button"
+              class="notice-header-btn"
+              onclick={() => (isNoticeExpanded = !isNoticeExpanded)}
+              aria-expanded={isNoticeExpanded}
+            >
+              <div class="notice-header-left">
+                <AlertTriangle size={15} class="notice-icon" />
+                <span class="notice-title">{i18n.t("customJsNoticeTitle")}</span>
+              </div>
+              <ChevronDown size={15} class="accordion-icon {isNoticeExpanded ? 'expanded' : ''}" />
+            </button>
+
+            {#if isNoticeExpanded}
+              <div class="notice-content" transition:slide={{ duration: 180 }}>
+                <p class="notice-intro">{i18n.t("customJsNoticeIntro")}</p>
+                <ul class="notice-list">
+                  <li>{i18n.t("customJsNoticeStep1")}</li>
+                  <li>{i18n.t("customJsNoticeStep2")}</li>
+                </ul>
+                {#if userScriptsError}
+                  <p class="notice-detail">Error: {userScriptsError}</p>
                 {/if}
-                <span>{i18n.t("customJsCheckStatusButton")}</span>
-              </button>
-            </div>
+                <button type="button" class="btn-check-status" onclick={() => checkUserScripts()} disabled={isCheckingUserScripts}>
+                  {#if isCheckingUserScripts}
+                    <Loader2 size={13} class="spin" />
+                  {:else}
+                    <RefreshCw size={13} />
+                  {/if}
+                  <span>{i18n.t("customJsCheckStatusButton")}</span>
+                </button>
+              </div>
+            {/if}
           </div>
         {:else if settings.customJsEnabled}
           <div transition:slide={{ duration: 220 }}>
@@ -539,32 +557,80 @@
 
   .devmode-notice {
     display: flex;
-    align-items: flex-start;
-    gap: 10px;
+    flex-direction: column;
     margin-top: 8px;
-    padding: 10px 12px;
     background: rgba(234, 179, 8, 0.1);
     border: 1px solid rgba(234, 179, 8, 0.3);
     border-radius: 6px;
     color: #fde047;
     font-size: 12px;
     line-height: 1.4;
+    overflow: hidden;
+  }
+
+  .notice-header-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 12px;
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: inherit;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .notice-header-btn:hover {
+    background: rgba(234, 179, 8, 0.08);
+  }
+
+  .notice-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-grow: 1;
   }
 
   .notice-icon {
     flex-shrink: 0;
-    margin-top: 1px;
+  }
+
+  .accordion-icon {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+  }
+
+  .accordion-icon.expanded {
+    transform: rotate(180deg);
   }
 
   .notice-content {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    flex-grow: 1;
+    padding: 0 12px 12px 12px;
+    border-top: 1px solid rgba(234, 179, 8, 0.15);
   }
 
-  .notice-text {
-    margin: 0;
+  .notice-intro {
+    margin: 8px 0 2px 0;
+  }
+
+  .notice-list {
+    margin: 2px 0 6px 0;
+    padding-left: 20px;
+    list-style-type: disc;
+  }
+
+  .notice-list li {
+    margin-bottom: 4px;
+    line-height: 1.4;
   }
 
   .notice-detail {
