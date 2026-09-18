@@ -30,4 +30,9 @@ describe("extractUsername", () => {
     expect(extractUsername("   https://www.twitch.tv/streamer123   ")).toBe("streamer123");
     expect(extractUsername("   @streamer123   ")).toBe("streamer123");
   });
+
+  it("不正なURL形式でURLオブジェクトの生成に失敗した場合にフォールバック処理を行うこと", () => {
+    expect(extractUsername("http://:")).toBe("http://:");
+    expect(extractUsername("https://[")).toBe("https://[");
+  });
 });
