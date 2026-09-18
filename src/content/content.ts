@@ -57,7 +57,7 @@ function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElem
 }
 
 // Safe sendMessage helper to avoid "Extension context invalidated" errors
-function safeSendMessage(message: ExtensionMessage, responseCallback?: (response: any) => void) {
+export function safeSendMessage(message: ExtensionMessage, responseCallback?: (response: any) => void) {
   try {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
       chrome.runtime.sendMessage(message, (res) => {
