@@ -97,3 +97,83 @@ describe('attachWatchTimeAndCleanup Performance Benchmark', () => {
     expect(avgMs).toBeGreaterThan(0);
   });
 });
+
+// テスト用データ生成
+function generateStreamers(count: number) {
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    list.push({
+      user_login: `User_Login_${i}`,
+      user_name: `User_Name_${i}`,
+      title: `Stream Title ${i}`,
+      game_name: `Game Name ${i}`,
+      profile_image_url: `https://example.com/img/${i}.jpg`,
+      viewer_count: i * 10,
+    });
+  }
+  return list;
+}
+
+// レガシー処理
+function processLegacy(rawFetched: any[], subOnlyMap: Record<string, boolean>) {
+  const logins = rawFetched.map((s) => s.user_login);
+  const fetchedStreamers = rawFetched.map((s) => ({
+    ...s,
+    is_sub_only: !!subOnlyMap[s.user_login.toLowerCase()],
+  }));
+  return { logins, fetchedStreamers };
+}
+
+// 最適化後処理
+function processOptimized(rawFetched: any[], subOnlyMap: Record<string, boolean>) {
+  const len = rawFetched.length;
+  const logins: string[] = new Array(len);
+  for (let i = 0; i < len; i++) {
+    logins[i] = rawFetched[i].user_login;
+  }
+
+  const fetchedStreamers = new Array(len);
+  for (let i = 0; i < len; i++) {
+    const s = rawFetched[i];
+    fetchedStreamers[i] = {
+      ...s,
+      is_sub_only: !!subOnlyMap[s.user_login.toLowerCase()],
+    };
+  }
+  return { logins, fetchedStreamers };
+}
+
+describe('Performance Benchmark - Baseline vs Optimized Data Transformation', () => {
+  it('compares baseline performance and optimized performance for 10,000 streamers', () => {
+    const streamerCount = 10000;
+    const rawFetched = generateStreamers(streamerCount);
+    const subOnlyMap: Record<string, boolean> = {};
+    for (let i = 0; i < streamerCount; i += 2) {
+      subOnlyMap[`user_login_${i}`.toLowerCase()] = true;
+    }
+
+    // 正当性の検証 (同等の出力であることを確認)
+    const legacyResult = processLegacy(rawFetched, subOnlyMap);
+    const optResult = processOptimized(rawFetched, subOnlyMap);
+    expect(optResult).toEqual(legacyResult);
+
+    const iterations = 50;
+
+    const startLegacy = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      processLegacy(rawFetched, subOnlyMap);
+    }
+    const durationLegacy = performance.now() - startLegacy;
+
+    const startOpt = performance.now();
+    for (let i = 0; i < iterations; i++) {
+      processOptimized(rawFetched, subOnlyMap);
+    }
+    const durationOpt = performance.now() - startOpt;
+
+    console.log(`[Legacy]    ${iterations} iterations x ${streamerCount} items: ${durationLegacy.toFixed(2)} ms (avg ${(durationLegacy / iterations).toFixed(2)} ms/iter)`);
+    console.log(`[Optimized] ${iterations} iterations x ${streamerCount} items: ${durationOpt.toFixed(2)} ms (avg ${(durationOpt / iterations).toFixed(2)} ms/iter)`);
+    const improvement = ((durationLegacy - durationOpt) / durationLegacy * 100).toFixed(1);
+    console.log(`[Improvement] Speedup: ${improvement}% faster`);
+  });
+});
