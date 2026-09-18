@@ -160,22 +160,27 @@ async function checkSubOnlyAuthViaGql(logins: string[]): Promise<Record<string, 
 }
 
 export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
-  const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
-  
-  // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
-  Object.keys(watchTimeMap).forEach((key) => {
-    if (!currentLiveLogins.has(key)) {
-      delete watchTimeMap[key];
-    }
-  });
+  const currentLiveLogins = new Set<string>();
+  const result: StreamInfo[] = new Array(fetched.length);
 
-  return fetched.map((s) => {
+  for (let i = 0; i < fetched.length; i++) {
+    const s = fetched[i];
     const key = s.user_login.toLowerCase();
-    return {
+    currentLiveLogins.add(key);
+    result[i] = {
       ...s,
       watch_time_seconds: watchTimeMap[key] || 0,
     };
-  });
+  }
+
+  // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
+  for (const key in watchTimeMap) {
+    if (!currentLiveLogins.has(key)) {
+      delete watchTimeMap[key];
+    }
+  }
+
+  return result;
 }
 
 function startWatchTimer() {
