@@ -297,3 +297,47 @@ describe('parseFollowedLiveGqlResponse', () => {
     consoleWarnSpy.mockRestore();
   });
 });
+
+describe('getWatchTimeMap and setWatchTimeMap', () => {
+  beforeEach(() => {
+    setWatchTimeMap({});
+  });
+
+  it('getWatchTimeMap は現在の watchTimeMap オブジェクトを返す', () => {
+    const map = getWatchTimeMap();
+    expect(map).toEqual({});
+  });
+
+  it('setWatchTimeMap はオブジェクト参照を維持しながら内容を置換する', () => {
+    const refBefore = getWatchTimeMap();
+
+    setWatchTimeMap({ streamer1: 100, streamer2: 200 });
+
+    const refAfter = getWatchTimeMap();
+
+    // 同一参照であることを検証
+    expect(refAfter).toBe(refBefore);
+    // 内容が更新されていることを検証
+    expect(refAfter).toEqual({ streamer1: 100, streamer2: 200 });
+  });
+
+  it('setWatchTimeMap は既存のキーをクリアして新しいキー・値で上書きする', () => {
+    setWatchTimeMap({ old_streamer: 500 });
+    expect(getWatchTimeMap()).toHaveProperty('old_streamer', 500);
+
+    setWatchTimeMap({ new_streamer: 120 });
+
+    const map = getWatchTimeMap();
+    expect(map).not.toHaveProperty('old_streamer');
+    expect(map).toHaveProperty('new_streamer', 120);
+  });
+
+  it('setWatchTimeMap に空オブジェクトを渡した場合はすべてのキーがクリアされる', () => {
+    setWatchTimeMap({ streamer1: 300, streamer2: 400 });
+
+    setWatchTimeMap({});
+
+    const map = getWatchTimeMap();
+    expect(Object.keys(map)).toHaveLength(0);
+  });
+});
