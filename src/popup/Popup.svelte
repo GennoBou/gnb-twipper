@@ -261,6 +261,7 @@
     font-weight: 800;
     font-size: 16px;
     background: var(--gnb-gradient-logo, linear-gradient(135deg, #a855f7, #6366f1));
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }

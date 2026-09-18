@@ -37,7 +37,7 @@ function updateExcludedLoginsCache(): void {
 updateExcludedLoginsCache();
 
 let liveStreamers: StreamInfo[] = [];
-export let watchTimeMap: Record<string, number> = {};
+let watchTimeMap: Record<string, number> = {};
 
 export function setWatchTimeMap(map: Record<string, number>) {
   for (const key of Object.keys(watchTimeMap)) {
