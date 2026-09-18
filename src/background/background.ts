@@ -70,7 +70,7 @@ const COOL_DOWN_401_MS = 60000; // 401発生後、1分間は無駄なGQL再判�
 chrome.storage.local.get(['detectedClientId'], (res) => {
   if (res && typeof res.detectedClientId === 'string') {
     dynamicClientId = res.detectedClientId;
-    console.log('[gnb-twipper] Loaded saved Client-ID:', dynamicClientId);
+    console.log('[gnb-twipper] Loaded saved Client-ID');
   } else {
     console.log('[gnb-twipper] Client-ID is initially empty (null). Waiting to capture from twitch.tv packet.');
   }
@@ -84,7 +84,7 @@ if (typeof chrome !== 'undefined' && chrome.webRequest && chrome.webRequest.onBe
         const clientHeader = details.requestHeaders.find((h) => h.name.toLowerCase() === 'client-id');
         if (clientHeader && clientHeader.value) {
           if (dynamicClientId !== clientHeader.value) {
-            console.log('[gnb-twipper] [Auto Detect] Captured valid Client-ID from Twitch packet:', clientHeader.value);
+            console.log('[gnb-twipper] [Auto Detect] Captured valid Client-ID from Twitch packet');
             dynamicClientId = clientHeader.value;
             last401Time = 0; // 検出成功により401クールダウンを解除
             chrome.storage.local.set({ detectedClientId: dynamicClientId });
@@ -394,7 +394,7 @@ async function sendFollowedLiveGqlRequest(
     time: new Date().toLocaleTimeString(),
     hasAuthToken: !!authToken,
     hasDeviceId: !!deviceId,
-    usingClientId: clientId,
+    hasClientId: !!clientId,
   });
 
   const headers: Record<string, string> = {
