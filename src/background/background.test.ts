@@ -174,3 +174,59 @@ describe('attachWatchTimeAndCleanup', () => {
     expect(Object.keys(map)).toHaveLength(0);
   });
 });
+
+describe('Client-ID logging security', () => {
+  it('chrome.storage.local から Client-ID をロードした際にログへ生の Client-ID 値を出力しないこと', () => {
+    const consoleSpy = vi.spyOn(console, 'log');
+    const secretClientId = 'sensitive_client_id_abc123';
+
+    // モックの get メソッドを呼び出された際にコールバックを実行するように動作確認
+    const getMock = mockChrome.storage.local.get;
+    let getCallback: any = null;
+    for (const call of getMock.mock.calls) {
+      if (Array.isArray(call[0]) && call[0].includes('detectedClientId') && typeof call[1] === 'function') {
+        getCallback = call[1];
+        break;
+      }
+    }
+
+    if (getCallback) {
+      getCallback({ detectedClientId: secretClientId });
+    }
+
+    const matchedLogs = consoleSpy.mock.calls.filter((call) =>
+      call.some((arg) => typeof arg === 'string' && arg.includes('[gnb-twipper] Loaded saved Client-ID'))
+    );
+
+    for (const logCall of consoleSpy.mock.calls) {
+      for (const arg of logCall) {
+        expect(String(arg)).not.toContain(secretClientId);
+      }
+    }
+
+    consoleSpy.mockRestore();
+  });
+
+  it('webRequest で Client-ID をキャプチャした際にログへ生の Client-ID 値を出力しないこと', () => {
+    const consoleSpy = vi.spyOn(console, 'log');
+    const capturedClientId = 'captured_client_id_xyz789';
+
+    const addListenerMock = mockChrome.webRequest.onBeforeSendHeaders.addListener;
+    if (addListenerMock.mock.calls.length > 0) {
+      const listener = addListenerMock.mock.calls[0][0];
+      listener({
+        requestHeaders: [
+          { name: 'Client-ID', value: capturedClientId }
+        ]
+      });
+    }
+
+    for (const logCall of consoleSpy.mock.calls) {
+      for (const arg of logCall) {
+        expect(String(arg)).not.toContain(capturedClientId);
+      }
+    }
+
+    consoleSpy.mockRestore();
+  });
+});
