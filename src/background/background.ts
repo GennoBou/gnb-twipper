@@ -448,9 +448,7 @@ async function sendFollowedLiveGqlRequest(
   });
 }
 
-function parseFollowedLiveGqlResponse(data: any): StreamInfo[] | null {
-  console.log('[gnb-twipper] GQL raw response structure:', data);
-
+export function parseFollowedLiveGqlResponse(data: any): StreamInfo[] | null {
   if (data && Array.isArray(data) && data[0]?.errors) {
     console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
   }

@@ -53,7 +53,7 @@ if (typeof (globalThis as any).self === 'undefined') {
 (globalThis as any).fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500 }));
 
 // chrome のモック設定後に background.ts をインポート
-const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap } = await import('./background');
+const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse } = await import('./background');
 import type { StreamInfo } from '../types';
 
 describe('attachWatchTimeAndCleanup', () => {
@@ -228,5 +228,72 @@ describe('Client-ID logging security', () => {
     }
 
     consoleSpy.mockRestore();
+  });
+});
+
+describe('parseFollowedLiveGqlResponse', () => {
+  it('GQLレスポンスを正しくパースし、console.log で生データをログ出力しない', () => {
+    const consoleLogSpy = vi.spyOn(console, 'log');
+
+    const sampleGqlData = [
+      {
+        data: {
+          currentUser: {
+            id: '12345',
+            follows: {
+              edges: [
+                {
+                  node: {
+                    id: '101',
+                    login: 'testuser',
+                    displayName: 'TestUser',
+                    profileImageURL: 'https://example.com/pic.jpg',
+                    stream: {
+                      id: 's101',
+                      title: 'Test Stream Title',
+                      viewersCount: 150,
+                      game: {
+                        name: 'Just Chatting',
+                      },
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    ];
+
+    const result = parseFollowedLiveGqlResponse(sampleGqlData);
+
+    expect(result).toEqual([
+      {
+        user_login: 'testuser',
+        user_name: 'TestUser',
+        title: 'Test Stream Title',
+        game_name: 'Just Chatting',
+        profile_image_url: 'https://example.com/pic.jpg',
+        viewer_count: 150,
+      },
+    ]);
+
+    // 生データを含む console.log の呼び出しが行われないことを検証
+    expect(consoleLogSpy).not.toHaveBeenCalledWith('[gnb-twipper] GQL raw response structure:', sampleGqlData);
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('currentUser が存在しない場合は null を返し console.warn を出力する', () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn');
+
+    const result = parseFollowedLiveGqlResponse([{ data: {} }]);
+
+    expect(result).toBeNull();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered.'
+    );
+
+    consoleWarnSpy.mockRestore();
   });
 });
