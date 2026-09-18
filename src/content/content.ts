@@ -210,15 +210,6 @@ function findLeftSideNav(): Element | null {
 
 // Locate Followed Channels Section and return candidate anchor links
 function getFollowedCardLinks(leftNav: Element): HTMLAnchorElement[] {
-  // Dump sections info from user's live browser console for exact verification
-  const sectionsInfo = Array.from(leftNav.querySelectorAll('div[aria-label], section[aria-label], [data-a-target]')).map(el => ({
-    tag: el.tagName,
-    dataTarget: el.getAttribute('data-a-target'),
-    ariaLabel: el.getAttribute('aria-label'),
-    textSample: el.textContent?.substring(0, 30)?.trim(),
-  }));
-  console.log('[gnb-twipper] REAL USER BROWSER Left SideNav Sections:', sectionsInfo);
-
   // Locate Followed Channels Section STRICTLY using verified aria-label "フォローしているチャンネル"
   const followedSection =
     leftNav.querySelector('[aria-label*="フォローしているチャンネル"]') ||
