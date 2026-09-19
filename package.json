@@ -10,7 +10,9 @@
     "build-zip": "npm run build && powershell -Command \"Compress-Archive -Path dist/* -DestinationPath chrome-extension-v1.0.0.zip -Force\"",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:bench": "vitest run -c vitest.bench.config.ts",
+    "test:all": "npm run test && npm run test:bench"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.7.1",

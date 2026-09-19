@@ -117,16 +117,10 @@ async function checkSubOnlyAuthViaGql(
     if (deviceId) headers['Device-ID'] = deviceId;
     if (authToken) headers['Authorization'] = `OAuth ${authToken}`;
 
-    const logins: string[] = new Array(streamersOrLogins.length);
-    const bodyPayload = new Array(streamersOrLogins.length);
-
-    for (let i = 0; i < streamersOrLogins.length; i++) {
-      const item = streamersOrLogins[i];
-      const login = typeof item === 'string' ? item : item.user_login;
-      logins[i] = login;
-      bodyPayload[i] = {
-        operationName: 'PlaybackAccessTokenQuery',
-        query: `
+    const logins = streamersOrLogins.map((item) => (typeof item === 'string' ? item : item.user_login));
+    const bodyPayload = logins.map((login) => ({
+      operationName: 'PlaybackAccessTokenQuery',
+      query: `
         query PlaybackAccessTokenQuery($login: String!) {
           streamPlaybackAccessToken(channelName: $login, params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) {
             authorization {
@@ -136,9 +130,8 @@ async function checkSubOnlyAuthViaGql(
           }
         }
       `,
-        variables: { login },
-      };
-    }
+      variables: { login },
+    }));
 
     const response = await fetch('https://gql.twitch.tv/gql', {
       method: 'POST',
@@ -152,15 +145,14 @@ async function checkSubOnlyAuthViaGql(
     const subOnlyMap: Record<string, boolean> = {};
 
     if (Array.isArray(data)) {
-      for (let idx = 0; idx < data.length; idx++) {
-        const item: GqlPlaybackAccessTokenResponseItem = data[idx];
+      data.forEach((item: GqlPlaybackAccessTokenResponseItem, idx: number) => {
         const login = logins[idx];
         const auth = item?.data?.streamPlaybackAccessToken?.authorization;
         if (login && auth) {
           const isSubOnly = !!auth.isForbidden && (auth.forbiddenReasonCode === 'UNAUTHORIZED_ENTITLEMENTS' || auth.forbiddenReasonCode === 'SUB_ONLY');
           subOnlyMap[login.toLowerCase()] = isSubOnly;
         }
-      }
+      });
     }
 
     return subOnlyMap;
@@ -171,27 +163,19 @@ async function checkSubOnlyAuthViaGql(
 }
 
 export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
-  const currentLiveLogins = new Set<string>();
-  const result: StreamInfo[] = new Array(fetched.length);
-
-  for (let i = 0; i < fetched.length; i++) {
-    const s = fetched[i];
-    const key = s.user_login.toLowerCase();
-    currentLiveLogins.add(key);
-    result[i] = {
-      ...s,
-      watch_time_seconds: watchTimeMap[key] || 0,
-    };
-  }
+  const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
 
   // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
-  for (const key in watchTimeMap) {
+  for (const key of Object.keys(watchTimeMap)) {
     if (!currentLiveLogins.has(key)) {
       delete watchTimeMap[key];
     }
   }
 
-  return result;
+  return fetched.map((s) => ({
+    ...s,
+    watch_time_seconds: watchTimeMap[s.user_login.toLowerCase()] || 0,
+  }));
 }
 
 function startWatchTimer() {
@@ -550,14 +534,10 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
     // Twitch GQL API (PlaybackAccessToken) で各ライブ配信のサブスク視聴権限・ロックを一括判定
     const subOnlyMap = await checkSubOnlyAuthViaGql(rawFetched);
 
-    const fetchedStreamers: StreamInfo[] = new Array(rawFetched.length);
-    for (let i = 0; i < rawFetched.length; i++) {
-      const s = rawFetched[i];
-      fetchedStreamers[i] = {
-        ...s,
-        is_sub_only: !!subOnlyMap[s.user_login.toLowerCase()],
-      };
-    }
+    const fetchedStreamers: StreamInfo[] = rawFetched.map((s) => ({
+      ...s,
+      is_sub_only: !!subOnlyMap[s.user_login.toLowerCase()],
+    }));
 
     console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
 
@@ -959,25 +939,18 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         console.log('[gnb-twipper] Received streamers from DOM:', message.streamers.length);
         const domStreamers = message.streamers;
         checkSubOnlyAuthViaGql(domStreamers).then((subOnlyMap) => {
-          // 既存要素の fast lookup 用に Map を作成
-          const existingMap = new Map<string, StreamInfo>();
-          for (let i = 0; i < liveStreamers.length; i++) {
-            const old = liveStreamers[i];
-            existingMap.set(old.user_login.toLowerCase(), old);
-          }
+          const existingMap = new Map(liveStreamers.map((old) => [old.user_login.toLowerCase(), old]));
 
-          const updatedStreamers: StreamInfo[] = new Array(domStreamers.length);
-          for (let i = 0; i < domStreamers.length; i++) {
-            const s = domStreamers[i];
+          const updatedStreamers: StreamInfo[] = domStreamers.map((s) => {
             const lowerLogin = s.user_login.toLowerCase();
             const existing = existingMap.get(lowerLogin);
             const apiSubOnly = subOnlyMap[lowerLogin];
             const isSubOnly = apiSubOnly !== undefined ? apiSubOnly : (existing ? !!existing.is_sub_only : false);
-            updatedStreamers[i] = {
+            return {
               ...s,
               is_sub_only: isSubOnly,
             };
-          }
+          });
           liveStreamers = attachWatchTimeAndCleanup(updatedStreamers);
           resetRefreshAlarm();
           evaluateAutoState();

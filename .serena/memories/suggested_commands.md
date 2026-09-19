@@ -2,71 +2,50 @@
 
 本プロジェクトの開発において使用する推奨コマンド一覧です。環境は Windows 11 PowerShell を前提としています。
 
-## ビルド・実行・開発 (Taskfile 経由)
-本プロジェクトでは `Taskfile.yml` が定義されており、`task` コマンドを使用して主要な開発操作を行います。
-
-- **開発モードの起動 (ホットリロード)**:
-  ```powershell
-  task dev
-  ```
-  （内部的に `wails3 dev -config ./build/config.yml -port 9245` を実行）
-
-- **アプリケーションのビルド**:
-  ```powershell
-  task build
-  ```
-
-- **アプリケーションの実行**:
-  ```powershell
-  task run
-  ```
-
-- **Dockerを用いたクロスコンパイル環境のセットアップ**:
-  ```powershell
-  task setup:docker
-  ```
-
-- **サーバーモード (GUIなし、HTTPサーバーのみ) のビルドと実行**:
-  ```powershell
-  task build:server
-  task run:server
-  ```
-
-## フロントエンド単体のコマンド (frontend ディレクトリ)
+## 依存関係管理・ビルド
 - **依存関係のインストール**:
   ```powershell
-  cd frontend
   npm install
   ```
-- **Svelte・TypeScriptの型チェック**:
+- **開発モード (ファイル変更監視・ホットリロード)**:
   ```powershell
-  cd frontend
-  npm run check
+  npm run dev
   ```
-- **フロントエンドのビルド**:
+- **プロダクションビルド (`dist/` の生成)**:
   ```powershell
-  cd frontend
   npm run build
   ```
+- **配布用 ZIP パッケージの作成**:
+  ```powershell
+  npm run build-zip
+  ```
 
-## バックエンド単体のコマンド
-- **Goモジュールのクリーンアップと同期**:
+## 検証・テスト
+- **単体テストの実行 (Vitest - 高速単体テストのみ)**:
   ```powershell
-  go mod tidy
+  npm run test
   ```
-- **Goテストの実行**:
+- **ベンチマークテストの実行 (大量データ・パフォーマンス測定用)**:
   ```powershell
-  go test ./...
+  npm run test:bench
   ```
-- **Goコードの自動フォーマット**:
+- **すべてのテストの一括実行**:
   ```powershell
-  go fmt ./...
+  npm run test:all
+  ```
+- **TypeScript 型チェック (コンパイラ直接検証)**:
+  ```powershell
+  npx tsc --noEmit
+  ```
+- **Svelte / TypeScript 型チェック**:
+  ```powershell
+  npm run check
   ```
 
 ## Windows PowerShell 環境におけるユーティリティコマンドの規則
 Linux のエイリアスではなく、必ず正規の PowerShell コマンドレットを使用してください。
 - ファイル/ディレクトリ一覧: `Get-ChildItem` (不可: `ls`)
-- ファイル/ディレクトリ削除: `Remove-Item` (不可: `rm`) - 破壊的変更には `-WhatIf` を付けて確認を推奨。
+- ファイル/ディレクトリ削除: `Remove-Item` (不可: `rm`)
 - ファイル/ディレクトリコピー: `Copy-Item` (不可: `cp`)
 - ファイル/ディレクトリ移動: `Move-Item` (不可: `mv`)
 - パターン検索: `Select-String` (不可: `grep`)

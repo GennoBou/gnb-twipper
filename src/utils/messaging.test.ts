@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { safeSendMessage } from './content';
+import { safeSendMessage } from './messaging';
 import type { ExtensionMessage } from '../types';
 
-describe('safeSendMessage in content.ts', () => {
+describe('safeSendMessage', () => {
   const originalChrome = (globalThis as any).chrome;
 
   beforeEach(() => {
@@ -13,9 +13,8 @@ describe('safeSendMessage in content.ts', () => {
     (globalThis as any).chrome = originalChrome;
   });
 
-  it('sends message successfully and calls responseCallback when chrome.runtime.lastError is null', () => {
+  it('chrome.runtime.lastError が null の場合、メッセージを送信してコールバックを実行する', () => {
     const mockSendMessage = vi.fn((message, callback) => {
-      // simulate background returning response with no lastError
       if (callback) callback({ status: 'ok' });
     });
 
@@ -36,7 +35,7 @@ describe('safeSendMessage in content.ts', () => {
     expect(callback).toHaveBeenCalledWith({ status: 'ok' });
   });
 
-  it('does not call responseCallback when chrome.runtime.lastError is set', () => {
+  it('chrome.runtime.lastError が設定されている場合、コールバックを実行しない', () => {
     (globalThis as any).chrome = {
       runtime: {
         id: 'test-extension-id',
@@ -57,7 +56,7 @@ describe('safeSendMessage in content.ts', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('handles synchronous exception thrown by chrome.runtime.sendMessage gracefully', () => {
+  it('chrome.runtime.sendMessage が同期例外をスローした場合も安全に処理する', () => {
     const mockSendMessage = vi.fn(() => {
       throw new Error('Extension context invalidated');
     });
@@ -76,7 +75,7 @@ describe('safeSendMessage in content.ts', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('does nothing when chrome is undefined', () => {
+  it('chrome が undefined の場合は何もしない', () => {
     (globalThis as any).chrome = undefined;
 
     const callback = vi.fn();
@@ -86,7 +85,7 @@ describe('safeSendMessage in content.ts', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('does nothing when chrome.runtime is undefined', () => {
+  it('chrome.runtime が undefined の場合は何もしない', () => {
     (globalThis as any).chrome = {};
 
     const callback = vi.fn();
@@ -96,7 +95,7 @@ describe('safeSendMessage in content.ts', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('does nothing when chrome.runtime.id is undefined', () => {
+  it('chrome.runtime.id が undefined の場合は何もしない', () => {
     (globalThis as any).chrome = {
       runtime: {
         id: undefined,

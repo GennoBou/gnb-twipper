@@ -1,6 +1,7 @@
 import { mount, unmount } from 'svelte';
 import GnbNavTrigger from './GnbNavTrigger.svelte';
 import type { AppSettings, AutoState, ExtensionMessage, StreamInfo } from '../types';
+import { safeSendMessage } from '../utils/messaging';
 
 if (typeof window !== 'undefined') {
   console.log('[gnb-twipper] Content Script Initialized on Twitch');
@@ -54,23 +55,6 @@ function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElem
   }
 
   return null;
-}
-
-// Safe sendMessage helper to avoid "Extension context invalidated" errors
-export function safeSendMessage(message: ExtensionMessage, responseCallback?: (response: any) => void) {
-  try {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
-      chrome.runtime.sendMessage(message, (res) => {
-        if (chrome.runtime.lastError) {
-          // Extension context invalidated or port closed silently
-          return;
-        }
-        if (responseCallback) responseCallback(res);
-      });
-    }
-  } catch (e) {
-    // Context invalidated
-  }
 }
 
 function remountTriggerComponent() {
