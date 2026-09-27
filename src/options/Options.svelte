@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { slide } from "svelte/transition";
   import type { AppSettings, StreamInfo } from "../types";
-  import { Settings, Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2, RefreshCw, ChevronDown } from "@lucide/svelte";
+  import { Save, Check, Code, Globe, Clock, Play, UserX, Plus, Trash2, CheckCircle2, AlertTriangle, Loader2, RefreshCw, ChevronDown } from "@lucide/svelte";
   import { i18n } from "../i18n.svelte";
   import { extractUsername } from "../utils/username";
   import * as acorn from "acorn";
