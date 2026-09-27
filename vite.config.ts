@@ -7,7 +7,7 @@ import manifest from './src/manifest.json' with { type: 'json' };
 export default defineConfig({
   plugins: [
     svelte(),
-    crx({ manifest }),
+    ...(process.env.VITEST ? [] : [crx({ manifest })]),
   ],
   build: {
     emptyOutDir: true,
