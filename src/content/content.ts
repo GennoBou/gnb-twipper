@@ -338,10 +338,15 @@ function scrapeLiveStreamersFromDOM(): StreamInfo[] {
   console.log('[gnb-twipper] Candidate links in followed section count:', cardLinks.length);
 
   const streamers: StreamInfo[] = [];
+  const seenLogins = new Set<string>();
   cardLinks.forEach((a) => {
     const streamer = parseStreamerFromLink(a);
-    if (streamer && !streamers.some((s) => s.user_login.toLowerCase() === streamer.user_login)) {
-      streamers.push(streamer);
+    if (streamer) {
+      const loginKey = streamer.user_login.toLowerCase();
+      if (!seenLogins.has(loginKey)) {
+        seenLogins.add(loginKey);
+        streamers.push(streamer);
+      }
     }
   });
 
