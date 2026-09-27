@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { AppSettings, AutoState, StreamInfo } from "../types";
-  import { Play, Square, SkipForward, Settings, Radio, ExternalLink, ChevronDown, ChevronRight, Clock, Lock } from "@lucide/svelte";
+  import { Play, Square, SkipForward, Settings, Radio, ExternalLink, ChevronDown, ChevronRight, Lock } from "@lucide/svelte";
   import { i18n } from "../i18n.svelte";
 
   function formatWatchTime(seconds?: number): string {
