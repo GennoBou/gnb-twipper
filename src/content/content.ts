@@ -1,7 +1,40 @@
 import { mount, unmount } from 'svelte';
 import GnbNavTrigger from './GnbNavTrigger.svelte';
-import type { AppSettings, AutoState, ExtensionMessage, StreamInfo } from '../types';
+import type { AppSettings, AutoState, StreamInfo } from '../types';
 import { safeSendMessage } from '../utils/messaging';
+import { NAV_SELECTORS } from './selectors';
+import { findTwitchSearchTarget, createTriggerRootWrapper, insertTriggerRoot, applyCustomCss } from './ui-injector';
+import { findLeftSideNav, getFollowedCardLinks, scrapeLiveStreamersFromDOM } from './dom-scraper';
+import { PlayerMonitor, getCurrentChannelPath, isSubOnlyLocked, isStreamOffline } from './player-monitor';
+import {
+  cleanText,
+  extractUserLoginFromHref,
+  isOfflineChannel,
+  extractUserNameFromAria,
+  extractUserName,
+  parseViewerCount,
+  parseStreamerFromLink,
+} from './streamer-parser';
+
+// 外部およびテスト用 re-export
+export {
+  cleanText,
+  extractUserLoginFromHref,
+  isOfflineChannel,
+  extractUserNameFromAria,
+  extractUserName,
+  parseViewerCount,
+  parseStreamerFromLink,
+  findLeftSideNav,
+  getFollowedCardLinks,
+  scrapeLiveStreamersFromDOM,
+  findTwitchSearchTarget,
+  applyCustomCss,
+  getCurrentChannelPath,
+  isSubOnlyLocked,
+  isStreamOffline,
+  PlayerMonitor,
+};
 
 if (typeof window !== 'undefined') {
   console.log('[gnb-twipper] Content Script Initialized on Twitch');
@@ -25,46 +58,20 @@ let currentAutoState: AutoState = {
 };
 let currentStreamers: StreamInfo[] = [];
 
-// Custom Injection Elements
+// カスタム CSS <style> 要素の参照
 let customStyleElement: HTMLStyleElement | null = null;
 
-// Find Twitch Nav Search Container and ensure flex row layout
-function findTwitchSearchTarget(): { container: HTMLElement; searchBox: HTMLElement } | null {
-  const searchBox = document.querySelector('div[data-a-target="nav-search-box"]') as HTMLElement
-    || document.querySelector('div[data-a-target="nav-search-input"]') as HTMLElement;
-
-  if (searchBox && searchBox.parentElement) {
-    const container = searchBox.parentElement as HTMLElement;
-    // Force horizontal flex layout on search container so button stays on the right
-    container.style.setProperty('display', 'flex', 'important');
-    container.style.setProperty('flex-direction', 'row', 'important');
-    container.style.setProperty('align-items', 'center', 'important');
-    return { container, searchBox };
-  }
-
-  // Fallback: Left/Center area of top navbar
-  const topNav = document.querySelector('nav[data-a-target="top-nav"]') || document.querySelector('nav');
-  if (topNav) {
-    const centerDiv = (topNav.querySelector('div[class*="center"]') || topNav.children[1] || topNav) as HTMLElement;
-    if (centerDiv) {
-      centerDiv.style.setProperty('display', 'flex', 'important');
-      centerDiv.style.setProperty('flex-direction', 'row', 'important');
-      centerDiv.style.setProperty('align-items', 'center', 'important');
-      return { container: centerDiv, searchBox: centerDiv };
-    }
-  }
-
-  return null;
-}
-
+// Svelte ナビゲーションコンポーネントのマウント・再描画
 function remountTriggerComponent() {
-  const root = document.getElementById('gnb-twipper-trigger-root');
+  const root = document.getElementById(NAV_SELECTORS.TRIGGER_ROOT_ID);
   if (!root) {
     initNavTrigger();
     return;
   }
   if (triggerComponent) {
-    try { unmount(triggerComponent); } catch (e) {}
+    try {
+      unmount(triggerComponent);
+    } catch (e) {}
     triggerComponent = null;
   }
   root.innerHTML = '';
@@ -95,40 +102,30 @@ function remountTriggerComponent() {
   });
 }
 
+// ナビゲーションバーへのトリガーボタンの初期配置
 function initNavTrigger() {
-  if (document.getElementById('gnb-twipper-trigger-root')) {
+  if (document.getElementById(NAV_SELECTORS.TRIGGER_ROOT_ID)) {
     remountTriggerComponent();
     return;
   }
 
-  const target = findTwitchSearchTarget();
+  const target = findTwitchSearchTarget(document);
   if (!target) {
     return;
   }
 
-  const wrapper = document.createElement('div');
-  wrapper.id = 'gnb-twipper-trigger-root';
-  wrapper.style.display = 'inline-flex';
-  wrapper.style.alignItems = 'center';
-  wrapper.style.marginLeft = '8px';
-  wrapper.style.flexShrink = '0';
+  const wrapper = createTriggerRootWrapper(document);
+  insertTriggerRoot(target, wrapper);
 
-  // Insert right after search box element
-  if (target.searchBox && target.searchBox.nextSibling) {
-    target.container.insertBefore(wrapper, target.searchBox.nextSibling);
-  } else {
-    target.container.appendChild(wrapper);
-  }
-
-  // Extract current channel from URL path
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  if (pathParts.length > 0) {
-    currentAutoState.currentChannel = pathParts[0];
+  // URL パスから現在のチャンネル名を抽出
+  const channel = getCurrentChannelPath();
+  if (channel) {
+    currentAutoState.currentChannel = channel;
   }
 
   remountTriggerComponent();
 
-  // Request initial state from background
+  // Background へ初期状態（設定・自動巡回状態・配信者一覧）を要求
   safeSendMessage({ type: 'GET_SETTINGS' }, (res) => {
     if (res) {
       if (res.settings) applySettings(res.settings);
@@ -139,132 +136,28 @@ function initNavTrigger() {
   });
 }
 
+// 設定変更の適用（カスタム CSS の挿入・更新）
 function applySettings(newSettings: AppSettings) {
   const cssChanged =
     !currentSettings ||
     currentSettings.customCss !== newSettings.customCss ||
     currentSettings.customCssEnabled !== newSettings.customCssEnabled;
 
-  // Custom CSS Injection (実際に変更があった場合のみDOM更新)
   if (cssChanged) {
-    if (newSettings.customCssEnabled && newSettings.customCss) {
-      if (!customStyleElement) {
-        customStyleElement = document.createElement('style');
-        customStyleElement.id = 'gnb-twipper-custom-css';
-        document.head.appendChild(customStyleElement);
-      }
-      customStyleElement.textContent = newSettings.customCss;
-    } else if (customStyleElement) {
-      customStyleElement.textContent = '';
-    }
+    customStyleElement = applyCustomCss(
+      newSettings.customCss,
+      !!newSettings.customCssEnabled,
+      customStyleElement,
+      document
+    );
   }
 
   currentSettings = newSettings;
 }
 
-import {
-  cleanText,
-  extractUserLoginFromHref,
-  isOfflineChannel,
-  extractUserNameFromAria,
-  extractUserName,
-  parseViewerCount,
-  parseStreamerFromLink,
-} from './streamer-parser';
-
-export {
-  cleanText,
-  extractUserLoginFromHref,
-  isOfflineChannel,
-  extractUserNameFromAria,
-  extractUserName,
-  parseViewerCount,
-  parseStreamerFromLink,
-};
-
-// Find Left Navigation Container specifically (STRICTLY exclude right chat panel)
-function findLeftSideNav(): Element | null {
-  let leftNav =
-    document.querySelector('[data-a-target="side-nav-bar"]') ||
-    document.querySelector('nav[aria-label*="左ナビゲーション"]') ||
-    document.querySelector('nav[aria-label*="Left Navigation"]');
-
-  if (!leftNav) {
-    const candidateNavs = Array.from(document.querySelectorAll<HTMLElement>('aside, nav, [aria-label*="ナビゲーション"], [aria-label*="Navigation"]'));
-    leftNav = candidateNavs.find((el) => {
-      // Must NOT be inside or equal to right column / chat room
-      const isRightChat =
-        el.closest('[data-a-target="right-column"]') ||
-        el.classList.contains('chat-room') ||
-        !!el.querySelector('[data-a-target="chat-scroller"]') ||
-        !!el.querySelector('[data-a-target="chat-input"]');
-      return !isRightChat;
-    }) || null;
-  }
-
-  return leftNav;
-}
-
-// Locate Followed Channels Section and return candidate anchor links
-function getFollowedCardLinks(leftNav: Element): HTMLAnchorElement[] {
-  // Locate Followed Channels Section STRICTLY using verified aria-label "フォローしているチャンネル"
-  const followedSection =
-    leftNav.querySelector('[aria-label*="フォローしているチャンネル"]') ||
-    leftNav.querySelector('[aria-label*="フォロー中のチャンネル"]') ||
-    leftNav.querySelector('[aria-label*="Followed Channels"]') ||
-    leftNav.querySelector('[data-a-target="side-nav-section-followed-channels"]') ||
-    leftNav.querySelector('[data-test-selector="followed-channels"]');
-
-  if (followedSection) {
-    console.log('[gnb-twipper] Found EXACT followedSection container:', followedSection.getAttribute('aria-label'));
-    return Array.from(followedSection.querySelectorAll<HTMLAnchorElement>('a[href]'));
-  }
-
-  console.log('[gnb-twipper] followedSection container not matched, filtering by non-followed sections');
-
-  // Exclude recommended live channels and recommended categories sections
-  const excludedSections = Array.from(leftNav.querySelectorAll(
-    '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [data-a-target="side-nav-section-recommended-channels"]'
-  ));
-
-  const excludedLinks = new Set<HTMLAnchorElement>();
-  excludedSections.forEach((sec) => {
-    sec.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => excludedLinks.add(link));
-  });
-
-  const allLinks = Array.from(leftNav.querySelectorAll<HTMLAnchorElement>('a[href]'));
-  return allLinks.filter((a) => !excludedLinks.has(a));
-}
-
-function scrapeLiveStreamersFromDOM(): StreamInfo[] {
-  const leftNav = findLeftSideNav();
-  if (!leftNav) {
-    console.warn('[gnb-twipper] Left SideNav container not found on page');
-    return [];
-  }
-
-  const cardLinks = getFollowedCardLinks(leftNav);
-  console.log('[gnb-twipper] Candidate links in followed section count:', cardLinks.length);
-
-  const streamers: StreamInfo[] = [];
-  const seenLogins = new Set<string>();
-  cardLinks.forEach((a) => {
-    const streamer = parseStreamerFromLink(a);
-    if (streamer) {
-      const loginKey = streamer.user_login.toLowerCase();
-      if (!seenLogins.has(loginKey)) {
-        seenLogins.add(loginKey);
-        streamers.push(streamer);
-      }
-    }
-  });
-
-  console.log('[gnb-twipper] EXACT Followed LIVE streamers count from DOM:', streamers.length, streamers);
-  return streamers;
-}
-
+// DOM スクレイピングを実行し、結果を Background Service Worker へ送信
 function performAndSendDomScrape() {
-  const streamers = scrapeLiveStreamersFromDOM();
+  const streamers = scrapeLiveStreamersFromDOM(document);
   console.log('[gnb-twipper] DOM Scrape found streamers:', streamers.length, streamers);
   safeSendMessage({
     type: 'UPDATE_STREAMERS_FROM_DOM',
@@ -272,7 +165,7 @@ function performAndSendDomScrape() {
   });
 }
 
-// Listen for updates or scrape requests from background
+// Background からのメッセージリスナー登録
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
@@ -285,7 +178,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         performAndSendDomScrape();
       } else if (msg.type === 'NAVIGATE_TO_CHANNEL_REPLACE') {
         if (msg.channel) {
-          const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
+          const currentPath = getCurrentChannelPath();
           const targetChannel = msg.channel.toLowerCase();
 
           // すでに同一チャンネルを視聴中の場合は再遷移を行わない
@@ -312,11 +205,11 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
   });
 }
 
-// Content script DOM initialization (using document check so bundler does not tree-shake)
+// DOM初期化および監視（MutationObserver）
 if (typeof document !== 'undefined' && process.env.NODE_ENV !== 'test') {
   if (typeof MutationObserver !== 'undefined') {
     const observer = new MutationObserver(() => {
-      if (!document.getElementById('gnb-twipper-trigger-root')) {
+      if (!document.getElementById(NAV_SELECTORS.TRIGGER_ROOT_ID)) {
         initNavTrigger();
       }
     });
@@ -329,7 +222,7 @@ if (typeof document !== 'undefined' && process.env.NODE_ENV !== 'test') {
     }
   }
 
-  // Initialize trigger button on page load
+  // ページ読み込み完了時のトリガーボタン初期化
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       initNavTrigger();
@@ -339,137 +232,30 @@ if (typeof document !== 'undefined' && process.env.NODE_ENV !== 'test') {
   }
 }
 
-// Sub-only stream lock detection and auto-skip logic
-let lastLockedChannel: string | null = null;
+// プレイヤー監視マネージャーの初期化
+const playerMonitor = new PlayerMonitor({
+  onSubOnlyLockDetected: (channel) => {
+    safeSendMessage({
+      type: 'DETECTED_SUB_ONLY_LOCK',
+      channel,
+    });
+  },
+  onOfflineDetected: (channel) => {
+    safeSendMessage({
+      type: 'DETECTED_OFFLINE',
+      channel,
+    });
+  },
+});
 
-function checkSubOnlyLock() {
-  const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
-  if (!currentPath || currentPath.includes('.')) return;
-
-  // Search Twitch player overlay for sub-only lock indicators
-  const overlayContent =
-    document.querySelector('.preview-overlay') ||
-    document.querySelector('.preview-overlay__content') ||
-    document.querySelector('[data-test-selector="preview-content-broadcaster-streaming-status"]') ||
-    document.querySelector('[data-a-target="player-overlay-content"]') ||
-    document.querySelector('.player-overlay-background') ||
-    document.querySelector('[data-a-target="player-overlay-gate"]') ||
-    document.querySelector('.sub-only-container') ||
-    document.querySelector('[data-test-selector="sub-only-gate"]');
-
-  let isLocked = false;
-
-  if (overlayContent) {
-    const text = overlayContent.textContent || '';
-    if (
-      text.includes('サブスクライバー向け') ||
-      text.includes('サブスクライバー限定') ||
-      text.includes('無料プレビューの期間が終了') ||
-      text.includes('Subscriber-Only') ||
-      text.includes('Subscribers Only') ||
-      text.includes('この配信はサブスクライバー限定') ||
-      text.includes('サブスクライブして') ||
-      text.includes('Subscribe to continue') ||
-      text.includes('Subscribe to watch')
-    ) {
-      isLocked = true;
-    }
-  }
-
-  if (!isLocked) {
-    // Additional check: Sub-only badge or locked player gates
-    const lockElement =
-      document.querySelector('div[class*="sub-only-container"]') ||
-      document.querySelector('div[class*="sub_only_container"]') ||
-      document.querySelector('p[data-test-selector="preview-content-broadcaster-streaming-status"]');
-
-    if (lockElement && lockElement.textContent?.includes('サブスクライバー')) {
-      isLocked = true;
-    }
-  }
-
-  if (isLocked) {
-    if (lastLockedChannel !== currentPath) {
-      lastLockedChannel = currentPath;
-      console.log(`[gnb-twipper] Detected sub-only stream lock on @${currentPath}. Sending DETECTED_SUB_ONLY_LOCK to background.`);
-      safeSendMessage({
-        type: 'DETECTED_SUB_ONLY_LOCK',
-        channel: currentPath,
-      });
-    }
-  } else {
-    if (lastLockedChannel === currentPath) {
-      lastLockedChannel = null;
-    }
-  }
-}
-
-// Offline stream detection and auto-skip logic
-let lastOfflineChannel: string | null = null;
-
-function checkOfflineState() {
-  const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
-  if (!currentPath || currentPath.includes('.')) return;
-
-  const reserved = ['directory', 'settings', 'subscriptions', 'wallet', 'downloads', 'p', 'search', 'videos', 'moderator', 'popout'];
-  if (reserved.includes(currentPath)) return;
-
-  // 1. 明確なオフライン要素のセレクタをチェック
-  const offlineElement =
-    document.querySelector('[data-a-target="player-overlay-offline"]') ||
-    document.querySelector('[data-a-target="user-channel-offline-hero"]') ||
-    document.querySelector('.channel-status-info--offline') ||
-    document.querySelector('.channel-root--offline') ||
-    document.querySelector('[data-test-selector="offline-channel-header"]');
-
-  let isOffline = !!offlineElement;
-
-  if (!isOffline) {
-    // 2. チャンネル情報カードやステータスバッジ内の「オフライン」テキストチェック
-    const statusIndicators = Array.from(document.querySelectorAll(
-      '[data-test-selector="stream-info-card-component__subtitle"], .tw-channel-status-text-indicator, [data-a-target="channel-header-avatar"] ~ div, .channel-header'
-    ));
-
-    for (const el of statusIndicators) {
-      const text = el.textContent?.trim() || '';
-      if (text === 'オフライン' || text === 'Offline' || text.includes('オフラインです') || text.includes('currently offline')) {
-        isOffline = true;
-        break;
-      }
-    }
-  }
-
-  // 3. ライブインジケーター（LIVEバッジ）が表示されている場合はオフラインではないと判断
-  const liveIndicator = document.querySelector('[data-a-target="live-indicator"], .tw-channel-status-indicator--live');
-  if (liveIndicator) {
-    isOffline = false;
-  }
-
-  if (isOffline) {
-    if (lastOfflineChannel !== currentPath) {
-      lastOfflineChannel = currentPath;
-      console.log(`[gnb-twipper] Detected offline stream on @${currentPath}. Sending DETECTED_OFFLINE to background.`);
-      safeSendMessage({
-        type: 'DETECTED_OFFLINE',
-        channel: currentPath,
-      });
-    }
-  } else {
-    if (lastOfflineChannel === currentPath) {
-      lastOfflineChannel = null;
-    }
-  }
-}
-
-// Periodic timer to monitor player lock and offline state (every 1.5s)
+// 定期タイマーによるサブスクロック・オフライン状態の監視（1.5秒間隔）
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
   window.setInterval(() => {
     try {
-      checkSubOnlyLock();
-      checkOfflineState();
+      playerMonitor.checkSubOnlyLock(document, window.location);
+      playerMonitor.checkOfflineState(document, window.location);
     } catch (e) {
-      // Ignore background context invalidations
+      // Background context invalidated 時の例外は無視
     }
   }, 1500);
 }
-
