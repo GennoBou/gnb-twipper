@@ -95,8 +95,8 @@
   function openOptions() {
     if (typeof chrome !== "undefined" && chrome.tabs && chrome.tabs.create) {
       const optionsUrl = chrome.runtime.getURL("src/options/index.html");
-      chrome.tabs.query({}, (tabs) => {
-        const existingTab = tabs?.find((t) => t.url && t.url.includes("src/options/index.html"));
+      chrome.tabs.query({ url: optionsUrl }, (tabs) => {
+        const existingTab = tabs?.[0];
         if (existingTab && existingTab.id) {
           chrome.tabs.update(existingTab.id, { active: true });
           if (existingTab.windowId) {
