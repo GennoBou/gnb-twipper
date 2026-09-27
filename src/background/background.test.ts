@@ -53,7 +53,7 @@ if (typeof (globalThis as any).self === 'undefined') {
 (globalThis as any).fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500 }));
 
 // chrome のモック設定後に background.ts をインポート
-const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse } = await import('./background');
+const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse, checkUserScriptsStatus } = await import('./background');
 import type { StreamInfo } from '../types';
 
 describe('attachWatchTimeAndCleanup', () => {
@@ -172,6 +172,45 @@ describe('attachWatchTimeAndCleanup', () => {
     expect(result).toHaveLength(0);
     const map = getWatchTimeMap();
     expect(Object.keys(map)).toHaveLength(0);
+  });
+});
+
+describe('checkUserScriptsStatus', () => {
+  it('userScripts API が存在しない場合は { allowed: false, error: "API unavailable" } を返す', async () => {
+    const originalUserScripts = (globalThis as any).chrome.userScripts;
+    delete (globalThis as any).chrome.userScripts;
+
+    const result = await checkUserScriptsStatus();
+    expect(result).toEqual({ allowed: false, error: 'API unavailable' });
+
+    (globalThis as any).chrome.userScripts = originalUserScripts;
+  });
+
+  it('userScripts.getScripts() が成功した場合は { allowed: true } を返す', async () => {
+    (globalThis as any).chrome.userScripts = {
+      getScripts: vi.fn().mockResolvedValue([]),
+    };
+
+    const result = await checkUserScriptsStatus();
+    expect(result).toEqual({ allowed: true });
+  });
+
+  it('userScripts.getScripts() が Error オブジェクトでキャッチされた場合はエラーメッセージを返す', async () => {
+    (globalThis as any).chrome.userScripts = {
+      getScripts: vi.fn().mockRejectedValue(new Error('Developer mode is disabled')),
+    };
+
+    const result = await checkUserScriptsStatus();
+    expect(result).toEqual({ allowed: false, error: 'Developer mode is disabled' });
+  });
+
+  it('userScripts.getScripts() が非 Error 例外（文字列等）でキャッチされた場合は文字列化したエラーを返す', async () => {
+    (globalThis as any).chrome.userScripts = {
+      getScripts: vi.fn().mockRejectedValue('Custom string error'),
+    };
+
+    const result = await checkUserScriptsStatus();
+    expect(result).toEqual({ allowed: false, error: 'Custom string error' });
   });
 });
 
