@@ -384,7 +384,7 @@ async function syncCustomUserScript(appSettings: AppSettings): Promise<{ allowed
 }
 
 // Check user script status
-async function checkUserScriptsStatus(): Promise<{ allowed: boolean; error?: string }> {
+export async function checkUserScriptsStatus(): Promise<{ allowed: boolean; error?: string }> {
   const userScriptsApi = getUserScriptsApi();
   if (!userScriptsApi) {
     return { allowed: false, error: 'API unavailable' };
