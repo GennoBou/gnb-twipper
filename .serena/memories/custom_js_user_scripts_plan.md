@@ -17,7 +17,7 @@
    - Chrome / Firefox で別ビルドに分ける必要はなく、単一コードベース・単一ビルドで実行時 feature detection により対応。
    - `manifest.json` の permissions に `"userScripts"` を追加。
 
-## 進行状況 (2026-09-05)
-- PR #2, PR #17 はクローズ。
-- PR #15 に Jules への再実装指示コメントを投稿し、Jules による設計・実装案を依頼中。
-- 後日（明日以降）、Julesの成果物を参考にしつつ Antigravity でレビュー・再検討・本実装を行う。
+## 完了状況 (2026-09-27)
+- PR #2, PR #17 は重複・旧実装のためリジェクト（CLOSED）。
+- PR #15 にて Jules が `userScripts` API 対応および Options 画面のデベロッパーモード警告通知を実装し、main へマージ完了。
+- テストスイート（Vitest: 50 tests）もすべて通過することを確認済み。
