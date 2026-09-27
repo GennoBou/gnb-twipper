@@ -282,7 +282,7 @@ chrome.storage.local.get(['settings'], async (result) => {
 });
 
 // Helper to get Twitch auth-token cookie
-async function getTwitchAuthToken(): Promise<string | null> {
+export async function getTwitchAuthToken(): Promise<string | null> {
   return new Promise((resolve) => {
     chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'auth-token' }, (cookie) => {
       if (cookie && cookie.value) {

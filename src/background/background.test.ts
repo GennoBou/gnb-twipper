@@ -66,6 +66,7 @@ const {
   checkUserScriptsStatus,
   getTwitchDeviceId,
   syncCustomUserScript,
+  getTwitchAuthToken,
 } = await import('./background');
 import type { AppSettings, StreamInfo } from '../types';
 
@@ -247,6 +248,125 @@ describe('checkUserScriptsStatus', () => {
 
     const result = await checkUserScriptsStatus();
     expect(result).toEqual({ allowed: false, error: 'Custom string error' });
+  });
+});
+
+describe('getTwitchAuthToken', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('https://www.twitch.tv の chrome.cookies.get で auth-token が取得できる場合、そのトークンを返す', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log');
+
+    mockChrome.cookies.get.mockImplementation((details: any, cb: any) => {
+      if (details.url === 'https://www.twitch.tv' && details.name === 'auth-token') {
+        cb({ value: 'token_www_twitch' });
+      } else {
+        cb(null);
+      }
+    });
+
+    const token = await getTwitchAuthToken();
+
+    expect(token).toBe('token_www_twitch');
+    expect(mockChrome.cookies.get).toHaveBeenCalledWith(
+      { url: 'https://www.twitch.tv', name: 'auth-token' },
+      expect.any(Function)
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith('[gnb-twipper] Auth-token found via www.twitch.tv URL');
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('www.twitch.tv では取得できず、https://gql.twitch.tv の chrome.cookies.get で取得できる場合、そのトークンを返す', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log');
+
+    mockChrome.cookies.get.mockImplementation((details: any, cb: any) => {
+      if (details.url === 'https://gql.twitch.tv' && details.name === 'auth-token') {
+        cb({ value: 'token_gql_twitch' });
+      } else {
+        cb(null);
+      }
+    });
+
+    const token = await getTwitchAuthToken();
+
+    expect(token).toBe('token_gql_twitch');
+    expect(mockChrome.cookies.get).toHaveBeenCalledTimes(2);
+    expect(consoleLogSpy).toHaveBeenCalledWith('[gnb-twipper] Auth-token found via gql.twitch.tv URL');
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('個別URLでの取得は失敗し、chrome.cookies.getAll から twitch.tv ドメインの auth-token が取得できる場合、そのトークンを返す', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log');
+
+    mockChrome.cookies.get.mockImplementation((_details: any, cb: any) => {
+      cb(null);
+    });
+
+    mockChrome.cookies.getAll.mockImplementation((details: any, cb: any) => {
+      if (details.name === 'auth-token') {
+        cb([
+          { domain: 'other.com', name: 'auth-token', value: 'other_token' },
+          { domain: '.twitch.tv', name: 'auth-token', value: 'token_get_all' },
+        ]);
+      } else {
+        cb([]);
+      }
+    });
+
+    const token = await getTwitchAuthToken();
+
+    expect(token).toBe('token_get_all');
+    expect(mockChrome.cookies.getAll).toHaveBeenCalledWith(
+      { name: 'auth-token' },
+      expect.any(Function)
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith('[gnb-twipper] Auth-token found via cookies.getAll search for twitch.tv');
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('cookie オブジェクトが存在しても value が空文字列の場合は次の取得手段へフォールバックする', async () => {
+    const consoleLogSpy = vi.spyOn(console, 'log');
+
+    mockChrome.cookies.get.mockImplementation((details: any, cb: any) => {
+      if (details.url === 'https://www.twitch.tv') {
+        cb({ value: '' }); // 空文字列
+      } else if (details.url === 'https://gql.twitch.tv') {
+        cb({ value: 'fallback_gql_token' });
+      } else {
+        cb(null);
+      }
+    });
+
+    const token = await getTwitchAuthToken();
+
+    expect(token).toBe('fallback_gql_token');
+    expect(consoleLogSpy).toHaveBeenCalledWith('[gnb-twipper] Auth-token found via gql.twitch.tv URL');
+
+    consoleLogSpy.mockRestore();
+  });
+
+  it('どの方法でも cookie が見つからない（または value が空）場合は null を返し console.warn を出力する', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn');
+
+    mockChrome.cookies.get.mockImplementation((_details: any, cb: any) => {
+      cb(null);
+    });
+
+    mockChrome.cookies.getAll.mockImplementation((_details: any, cb: any) => {
+      cb([{ domain: '.twitch.tv', name: 'auth-token', value: '' }]); // 空文字列
+    });
+
+    const token = await getTwitchAuthToken();
+
+    expect(token).toBeNull();
+    expect(consoleWarnSpy).toHaveBeenCalledWith('[gnb-twipper] Auth-token cookie NOT found');
+
+    consoleWarnSpy.mockRestore();
   });
 });
 
