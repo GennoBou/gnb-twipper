@@ -1,6 +1,6 @@
 import { mount, unmount } from 'svelte';
 import GnbNavTrigger from './GnbNavTrigger.svelte';
-import type { AppSettings, AutoState, StreamInfo } from '../types';
+import type { AppSettings, AutoState, StreamInfo, ExtensionMessage } from '../types';
 import { safeSendMessage } from '../utils/messaging';
 import { NAV_SELECTORS } from './selectors';
 import { findTwitchSearchTarget, createTriggerRootWrapper, insertTriggerRoot, applyCustomCss } from './ui-injector';
@@ -40,7 +40,7 @@ if (typeof window !== 'undefined') {
   console.log('[gnb-twipper] Content Script Initialized on Twitch');
 }
 
-let triggerComponent: any = null;
+let triggerComponent: ReturnType<typeof mount> | null = null;
 let currentSettings: AppSettings = {
   rotationTimeMinutes: 3,
   autoStartOnLogin: true,
@@ -167,7 +167,7 @@ function performAndSendDomScrape() {
 
 // Background からのメッセージリスナー登録
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg: ExtensionMessage, _sender, sendResponse) => {
     try {
       if (msg.type === 'AUTO_STATE_UPDATE') {
         if (msg.autoState) currentAutoState = msg.autoState;

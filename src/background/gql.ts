@@ -1,4 +1,4 @@
-import type { StreamInfo, GqlPlaybackAccessTokenResponseItem } from '../types';
+import type { StreamInfo, GqlPlaybackAccessTokenResponseItem, GqlFollowedLiveResponseItem, GqlFollowEdge } from '../types';
 
 /**
  * フォロー中チャンネルのライブ配信一覧を取得するための Twitch GQL リクエストを送信する
@@ -70,21 +70,22 @@ export async function sendFollowedLiveGqlRequest(
  * GQL レスポンスデータを StreamInfo 配列にパースする
  * currentUser が取得できない場合やエラー時は null を返す
  */
-export function parseFollowedLiveGqlResponse(data: any): StreamInfo[] | null {
-  if (data && Array.isArray(data) && data[0]?.errors) {
-    console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
+export function parseFollowedLiveGqlResponse(data: unknown): StreamInfo[] | null {
+  const items = Array.isArray(data) ? (data as GqlFollowedLiveResponseItem[]) : null;
+  if (items && items[0]?.errors) {
+    console.warn('[gnb-twipper] GQL returned errors:', items[0].errors);
   }
 
-  const currentUser = data?.[0]?.data?.currentUser;
+  const currentUser = items?.[0]?.data?.currentUser;
   if (!currentUser) {
     console.warn('[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered.');
     return null;
   }
 
-  const edges = currentUser.follows?.edges || [];
+  const edges: GqlFollowEdge[] = currentUser.follows?.edges || [];
   const rawFetched: StreamInfo[] = [];
 
-  edges.forEach((edge: any) => {
+  edges.forEach((edge: GqlFollowEdge) => {
     const node = edge?.node;
     const stream = node?.stream;
     if (node && stream) {

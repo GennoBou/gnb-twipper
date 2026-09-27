@@ -233,7 +233,7 @@ chrome.storage.local.get(['settings'], async (result) => {
 
 
 let zeroStreamerCount = 0;
-let domScrapeRetryTimer: any = null;
+let domScrapeRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Request active Twitch tabs to scrape live streamers from DOM with optional retry
 function requestDomScrapeFromTabs(retryCount = 0) {
@@ -601,7 +601,7 @@ function broadcastState() {
 // Message listener
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
   // Ignore self-broadcast messages
-  if ((message as any).type === 'AUTO_STATE_UPDATE') {
+  if (message.type === 'AUTO_STATE_UPDATE') {
     return false;
   }
 

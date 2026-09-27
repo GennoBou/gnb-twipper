@@ -7,8 +7,9 @@ export function getUserScriptsApi(): typeof chrome.userScripts | null {
   if (typeof chrome !== 'undefined' && chrome.userScripts) {
     return chrome.userScripts;
   }
-  if (typeof (globalThis as any).browser !== 'undefined' && (globalThis as any).browser.userScripts) {
-    return (globalThis as any).browser.userScripts;
+  const globalEnv = globalThis as { browser?: { userScripts?: typeof chrome.userScripts } };
+  if (typeof globalEnv.browser !== 'undefined' && globalEnv.browser.userScripts) {
+    return globalEnv.browser.userScripts;
   }
   return null;
 }
@@ -45,9 +46,10 @@ export async function syncCustomUserScript(appSettings: AppSettings): Promise<{ 
       console.log('[gnb-twipper] Custom user script successfully registered via userScripts API');
     }
     return { allowed: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.warn('[gnb-twipper] Error syncing user script via userScripts API:', err);
-    return { allowed: false, error: err?.message || String(err) };
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return { allowed: false, error: errorMessage };
   }
 }
 
@@ -62,7 +64,8 @@ export async function checkUserScriptsStatus(): Promise<{ allowed: boolean; erro
   try {
     await userScriptsApi.getScripts();
     return { allowed: true };
-  } catch (err: any) {
-    return { allowed: false, error: err?.message || String(err) };
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return { allowed: false, error: errorMessage };
   }
 }
