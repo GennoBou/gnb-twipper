@@ -398,7 +398,7 @@ export async function checkUserScriptsStatus(): Promise<{ allowed: boolean; erro
 }
 
 // Helper to get Twitch device-id (unique_id cookie)
-async function getTwitchDeviceId(): Promise<string | null> {
+export async function getTwitchDeviceId(): Promise<string | null> {
   return new Promise((resolve) => {
     chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'unique_id' }, (cookie) => {
       if (cookie && cookie.value) {

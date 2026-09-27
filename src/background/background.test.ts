@@ -53,7 +53,7 @@ if (typeof (globalThis as any).self === 'undefined') {
 (globalThis as any).fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500 }));
 
 // chrome のモック設定後に background.ts をインポート
-const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse, checkUserScriptsStatus } = await import('./background');
+const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse, checkUserScriptsStatus, getTwitchDeviceId } = await import('./background');
 import type { StreamInfo } from '../types';
 
 describe('attachWatchTimeAndCleanup', () => {
@@ -334,6 +334,91 @@ describe('parseFollowedLiveGqlResponse', () => {
     );
 
     consoleWarnSpy.mockRestore();
+  });
+});
+
+describe('getTwitchDeviceId', () => {
+  it('chrome.cookies.get で unique_id クッキーが取得できた場合、その値を返す', async () => {
+    mockChrome.cookies.get.mockImplementation((details, cb) => {
+      if (details.url === 'https://www.twitch.tv' && details.name === 'unique_id') {
+        cb({ name: 'unique_id', value: 'device_id_12345' });
+      } else {
+        cb(null);
+      }
+    });
+
+    const deviceId = await getTwitchDeviceId();
+    expect(deviceId).toBe('device_id_12345');
+    expect(mockChrome.cookies.get).toHaveBeenCalledWith(
+      { url: 'https://www.twitch.tv', name: 'unique_id' },
+      expect.any(Function)
+    );
+  });
+
+  it('chrome.cookies.get が null を返し、chrome.cookies.getAll にフォールバックして twitch.tv に一致するクッキーがある場合その値を返す', async () => {
+    mockChrome.cookies.get.mockImplementation((_details, cb) => {
+      cb(null);
+    });
+
+    mockChrome.cookies.getAll.mockImplementation((details, cb) => {
+      if (details.name === 'unique_id') {
+        cb([
+          { domain: '.other.com', value: 'other_id' },
+          { domain: '.twitch.tv', value: 'fallback_device_id_67890' },
+        ]);
+      } else {
+        cb([]);
+      }
+    });
+
+    const deviceId = await getTwitchDeviceId();
+    expect(deviceId).toBe('fallback_device_id_67890');
+    expect(mockChrome.cookies.getAll).toHaveBeenCalledWith(
+      { name: 'unique_id' },
+      expect.any(Function)
+    );
+  });
+
+  it('chrome.cookies.get が null を返し、chrome.cookies.getAll でも twitch.tv に一致するクッキーがない場合 null を返す', async () => {
+    mockChrome.cookies.get.mockImplementation((_details, cb) => {
+      cb(null);
+    });
+
+    mockChrome.cookies.getAll.mockImplementation((details, cb) => {
+      if (details.name === 'unique_id') {
+        cb([
+          { domain: '.other.com', value: 'other_id' },
+        ]);
+      } else {
+        cb([]);
+      }
+    });
+
+    const deviceId = await getTwitchDeviceId();
+    expect(deviceId).toBeNull();
+  });
+
+  it('chrome.cookies.get でクッキーの value が空または未定義の場合、chrome.cookies.getAll にフォールバックする', async () => {
+    mockChrome.cookies.get.mockImplementation((_details, cb) => {
+      cb({ name: 'unique_id', value: '' });
+    });
+
+    mockChrome.cookies.getAll.mockImplementation((details, cb) => {
+      if (details.name === 'unique_id') {
+        cb([
+          { domain: 'www.twitch.tv', value: 'fallback_from_empty_value' },
+        ]);
+      } else {
+        cb([]);
+      }
+    });
+
+    const deviceId = await getTwitchDeviceId();
+    expect(deviceId).toBe('fallback_from_empty_value');
+    expect(mockChrome.cookies.getAll).toHaveBeenCalledWith(
+      { name: 'unique_id' },
+      expect.any(Function)
+    );
   });
 });
 
