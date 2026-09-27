@@ -62,6 +62,45 @@ let userManuallyStopped = false; // ユーザーが手動でオートモード�
 let countdownTimer: number | null = null;
 let watchTimer: number | null = null;
 
+let cachedActiveTwitchChannel: string | null = null;
+let cachedTwitchTabIds: Set<number> = new Set();
+
+export function refreshActiveTwitchChannelCache(): void {
+  if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return;
+  chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) return;
+    let activeChannel: string | null = null;
+    const newTabIds = new Set<number>();
+    if (tabs) {
+      tabs.forEach((t) => {
+        if (t.id) newTabIds.add(t.id);
+      });
+      const activeTab = tabs.find((t) => t.active && t.url);
+      if (activeTab && activeTab.url) {
+        activeChannel = extractChannelFromUrl(activeTab.url);
+      } else if (tabs.length > 0 && tabs[0]?.url) {
+        activeChannel = extractChannelFromUrl(tabs[0].url);
+      }
+    }
+    cachedTwitchTabIds = newTabIds;
+    cachedActiveTwitchChannel = activeChannel ? activeChannel.toLowerCase() : null;
+  });
+}
+
+// タブ関連のイベントリスナーを設定してアクティブチャンネルキャッシュを更新
+if (typeof chrome !== 'undefined' && chrome.tabs) {
+  if (chrome.tabs.onActivated) {
+    chrome.tabs.onActivated.addListener(() => {
+      refreshActiveTwitchChannelCache();
+    });
+  }
+  if (chrome.tabs.onRemoved) {
+    chrome.tabs.onRemoved.addListener(() => {
+      refreshActiveTwitchChannelCache();
+    });
+  }
+}
+
 let dynamicClientId: string | null = null; // インストール時・401エラー時は白紙 (null)
 let last401Time = 0;
 const COOL_DOWN_401_MS = 60000; // 401発生後、1分間は無駄なGQL再判定の頻発を防止
@@ -180,32 +219,24 @@ export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
 
 function startWatchTimer() {
   if (watchTimer !== null) return;
+  refreshActiveTwitchChannelCache();
   watchTimer = self.setInterval(() => {
-    chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
-      let activeChannel: string | null = null;
-      // アクティブなTwitchタブを優先検索
-      const activeTab = tabs.find((t) => t.active && t.url);
-      if (activeTab && activeTab.url) {
-        activeChannel = extractChannelFromUrl(activeTab.url);
-      } else if (tabs.length > 0 && tabs[0].url) {
-        activeChannel = extractChannelFromUrl(tabs[0].url);
-      }
+    let activeChannel = cachedActiveTwitchChannel;
 
-      if (!activeChannel && autoState.isActive && autoState.currentChannel) {
-        activeChannel = autoState.currentChannel.toLowerCase();
-      }
+    if (!activeChannel && autoState.isActive && autoState.currentChannel) {
+      activeChannel = autoState.currentChannel.toLowerCase();
+    }
 
-      if (activeChannel) {
-        const key = activeChannel.toLowerCase();
-        watchTimeMap[key] = (watchTimeMap[key] || 0) + 1;
+    if (activeChannel) {
+      const key = activeChannel.toLowerCase();
+      watchTimeMap[key] = (watchTimeMap[key] || 0) + 1;
 
-        const targetStreamer = liveStreamers.find((s) => s.user_login.toLowerCase() === key);
-        if (targetStreamer) {
-          targetStreamer.watch_time_seconds = watchTimeMap[key];
-          broadcastState();
-        }
+      const targetStreamer = liveStreamers.find((s) => s.user_login.toLowerCase() === key);
+      if (targetStreamer) {
+        targetStreamer.watch_time_seconds = watchTimeMap[key];
+        broadcastState();
       }
-    });
+    }
   }, 1000) as unknown as number;
 }
 
@@ -782,18 +813,29 @@ function navigateToChannel(channel: string) {
 // Broadcast Auto State to all tabs/popups
 function broadcastState() {
   const targetStreamers = getRotationTargetStreamers();
-  chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
-    tabs.forEach((tab) => {
-      if (tab.id) {
-        chrome.tabs.sendMessage(tab.id, {
-          type: 'AUTO_STATE_UPDATE',
-          autoState,
-          settings,
-          liveStreamers: targetStreamers,
-        }).catch(() => {});
-      }
+  if (cachedTwitchTabIds.size > 0) {
+    cachedTwitchTabIds.forEach((tabId) => {
+      chrome.tabs.sendMessage(tabId, {
+        type: 'AUTO_STATE_UPDATE',
+        autoState,
+        settings,
+        liveStreamers: targetStreamers,
+      }).catch(() => {});
     });
-  });
+  } else {
+    chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
+      tabs.forEach((tab) => {
+        if (tab.id) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'AUTO_STATE_UPDATE',
+            autoState,
+            settings,
+            liveStreamers: targetStreamers,
+          }).catch(() => {});
+        }
+      });
+    });
+  }
 
   chrome.runtime.sendMessage({
     type: 'AUTO_STATE_UPDATE',
@@ -1003,6 +1045,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 // Auto-start auto mode when Twitch tab is opened/loaded if autoStartOnLogin is enabled (initial load only)
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete' || changeInfo.url) {
+    refreshActiveTwitchChannelCache();
+  }
   if (changeInfo.status === 'complete' && tab.url && tab.url.includes('twitch.tv')) {
     const alreadyStarted = await isInitialAutoStarted();
     if (settings.autoStartOnLogin && !autoState.isActive && !alreadyStarted) {
