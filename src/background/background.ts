@@ -348,7 +348,7 @@ function getUserScriptsApi(): typeof chrome.userScripts | null {
 }
 
 // Sync custom user script with userScripts API
-async function syncCustomUserScript(appSettings: AppSettings): Promise<{ allowed: boolean; error?: string }> {
+export async function syncCustomUserScript(appSettings: AppSettings): Promise<{ allowed: boolean; error?: string }> {
   const userScriptsApi = getUserScriptsApi();
   if (!userScriptsApi) {
     console.warn('[gnb-twipper] userScripts API is not available in this environment.');

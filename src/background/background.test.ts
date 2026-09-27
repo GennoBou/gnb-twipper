@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // モジュールインポート前に globalThis に mock を注入
 const mockChrome = {
@@ -44,6 +44,11 @@ const mockChrome = {
       addListener: vi.fn(),
     },
   },
+  userScripts: {
+    getScripts: vi.fn((..._args: any[]) => Promise.resolve([] as any[])),
+    unregister: vi.fn((..._args: any[]) => Promise.resolve()),
+    register: vi.fn((..._args: any[]) => Promise.resolve()),
+  },
 };
 
 (globalThis as any).chrome = mockChrome;
@@ -53,8 +58,29 @@ if (typeof (globalThis as any).self === 'undefined') {
 (globalThis as any).fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500 }));
 
 // chrome のモック設定後に background.ts をインポート
-const { attachWatchTimeAndCleanup, getWatchTimeMap, setWatchTimeMap, parseFollowedLiveGqlResponse, checkUserScriptsStatus, getTwitchDeviceId } = await import('./background');
-import type { StreamInfo } from '../types';
+const {
+  attachWatchTimeAndCleanup,
+  getWatchTimeMap,
+  setWatchTimeMap,
+  parseFollowedLiveGqlResponse,
+  checkUserScriptsStatus,
+  getTwitchDeviceId,
+  syncCustomUserScript,
+} = await import('./background');
+import type { AppSettings, StreamInfo } from '../types';
+
+const sampleSettings: AppSettings = {
+  rotationTimeMinutes: 3,
+  autoStartOnLogin: true,
+  language: 'ja',
+  customCss: '',
+  customJs: 'console.log("hello")',
+  customCssEnabled: false,
+  customJsEnabled: true,
+  excludedChannels: [],
+  skipSubOnlyStreams: false,
+  allowSubOnlyFreePreview: true,
+};
 
 describe('attachWatchTimeAndCleanup', () => {
   beforeEach(() => {
@@ -176,18 +202,26 @@ describe('attachWatchTimeAndCleanup', () => {
 });
 
 describe('checkUserScriptsStatus', () => {
+  let originalUserScripts: any;
+
+  beforeEach(() => {
+    originalUserScripts = (globalThis as any).chrome.userScripts;
+  });
+
+  afterEach(() => {
+    (globalThis as any).chrome.userScripts = originalUserScripts;
+  });
+
   it('userScripts API が存在しない場合は { allowed: false, error: "API unavailable" } を返す', async () => {
-    const originalUserScripts = (globalThis as any).chrome.userScripts;
     delete (globalThis as any).chrome.userScripts;
 
     const result = await checkUserScriptsStatus();
     expect(result).toEqual({ allowed: false, error: 'API unavailable' });
-
-    (globalThis as any).chrome.userScripts = originalUserScripts;
   });
 
   it('userScripts.getScripts() が成功した場合は { allowed: true } を返す', async () => {
     (globalThis as any).chrome.userScripts = {
+      ...originalUserScripts,
       getScripts: vi.fn().mockResolvedValue([]),
     };
 
@@ -197,6 +231,7 @@ describe('checkUserScriptsStatus', () => {
 
   it('userScripts.getScripts() が Error オブジェクトでキャッチされた場合はエラーメッセージを返す', async () => {
     (globalThis as any).chrome.userScripts = {
+      ...originalUserScripts,
       getScripts: vi.fn().mockRejectedValue(new Error('Developer mode is disabled')),
     };
 
@@ -206,6 +241,7 @@ describe('checkUserScriptsStatus', () => {
 
   it('userScripts.getScripts() が非 Error 例外（文字列等）でキャッチされた場合は文字列化したエラーを返す', async () => {
     (globalThis as any).chrome.userScripts = {
+      ...originalUserScripts,
       getScripts: vi.fn().mockRejectedValue('Custom string error'),
     };
 
@@ -463,5 +499,82 @@ describe('getWatchTimeMap and setWatchTimeMap', () => {
 
     const map = getWatchTimeMap();
     expect(Object.keys(map)).toHaveLength(0);
+  });
+});
+
+describe('syncCustomUserScript', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('既存のスクリプトが存在する場合に unregister が正常に呼び出され、新スクリプトが登録される', async () => {
+    mockChrome.userScripts.getScripts.mockResolvedValueOnce([{ id: 'gnb-twipper-custom-script' }]);
+    mockChrome.userScripts.unregister.mockResolvedValueOnce(undefined);
+    mockChrome.userScripts.register.mockResolvedValueOnce(undefined);
+
+    const result = await syncCustomUserScript(sampleSettings);
+
+    expect(result).toEqual({ allowed: true });
+    expect(mockChrome.userScripts.getScripts).toHaveBeenCalledWith({ ids: ['gnb-twipper-custom-script'] });
+    expect(mockChrome.userScripts.unregister).toHaveBeenCalledWith({ ids: ['gnb-twipper-custom-script'] });
+    expect(mockChrome.userScripts.register).toHaveBeenCalledWith([
+      {
+        id: 'gnb-twipper-custom-script',
+        matches: ['*://*.twitch.tv/*'],
+        js: [{ code: 'console.log("hello")' }],
+        world: 'MAIN',
+        runAt: 'document_idle',
+      },
+    ]);
+  });
+
+  it('userScriptsApi.unregister がエラーをスローした場合、エラーがキャッチされ allowed: false とエラーメッセージを返す', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockChrome.userScripts.getScripts.mockResolvedValueOnce([{ id: 'gnb-twipper-custom-script' }]);
+    mockChrome.userScripts.unregister.mockRejectedValueOnce(new Error('Unregister failed'));
+
+    const result = await syncCustomUserScript(sampleSettings);
+
+    expect(result).toEqual({ allowed: false, error: 'Unregister failed' });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[gnb-twipper] Error syncing user script via userScripts API:',
+      expect.any(Error)
+    );
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it('userScriptsApi.getScripts がエラーをスローした場合、エラーがキャッチされ allowed: false とエラーメッセージを返す', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockChrome.userScripts.getScripts.mockRejectedValueOnce(new Error('UserScripts API disabled'));
+
+    const result = await syncCustomUserScript(sampleSettings);
+
+    expect(result).toEqual({ allowed: false, error: 'UserScripts API disabled' });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[gnb-twipper] Error syncing user script via userScripts API:',
+      expect.any(Error)
+    );
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it('userScriptsApi.register がエラーをスローした場合、エラーがキャッチされ allowed: false とエラーメッセージを返す', async () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    mockChrome.userScripts.getScripts.mockResolvedValueOnce([]);
+    mockChrome.userScripts.register.mockRejectedValueOnce(new Error('Register failed'));
+
+    const result = await syncCustomUserScript(sampleSettings);
+
+    expect(result).toEqual({ allowed: false, error: 'Register failed' });
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      '[gnb-twipper] Error syncing user script via userScripts API:',
+      expect.any(Error)
+    );
+
+    consoleWarnSpy.mockRestore();
   });
 });
