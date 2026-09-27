@@ -1,6 +1,37 @@
-import type { AppSettings, StreamInfo, AutoState, ExtensionMessage, GqlPlaybackAccessTokenResponseItem } from '../types';
+import type { AppSettings, StreamInfo, AutoState, ExtensionMessage } from '../types';
 import { extractChannelFromUrl } from '../utils/url';
 import { getRotationTargetStreamers as getRotationTargetStreamersUtil, getAutoRotationCandidates as getAutoRotationCandidatesUtil } from './rotation';
+import { getTwitchAuthToken, getTwitchDeviceId } from './auth';
+import { syncCustomUserScript, checkUserScriptsStatus, getUserScriptsApi } from './userScripts';
+import {
+  watchTimeMap,
+  setWatchTimeMap,
+  getWatchTimeMap,
+  attachWatchTimeAndCleanup,
+  incrementWatchTime,
+  removeWatchTime,
+} from './watchTime';
+
+import {
+  sendFollowedLiveGqlRequest,
+  parseFollowedLiveGqlResponse,
+  checkSubOnlyAuthViaGql as checkSubOnlyAuthViaGqlUtil,
+} from './gql';
+
+export {
+  getTwitchAuthToken,
+  getTwitchDeviceId,
+  syncCustomUserScript,
+  checkUserScriptsStatus,
+  getUserScriptsApi,
+  watchTimeMap,
+  setWatchTimeMap,
+  getWatchTimeMap,
+  attachWatchTimeAndCleanup,
+  sendFollowedLiveGqlRequest,
+  parseFollowedLiveGqlResponse,
+  checkSubOnlyAuthViaGql,
+};
 
 console.log('[gnb-twipper] Background Service Worker Initialized');
 
@@ -37,18 +68,6 @@ function updateExcludedLoginsCache(): void {
 updateExcludedLoginsCache();
 
 let liveStreamers: StreamInfo[] = [];
-let watchTimeMap: Record<string, number> = {};
-
-export function setWatchTimeMap(map: Record<string, number>) {
-  for (const key of Object.keys(watchTimeMap)) {
-    delete watchTimeMap[key];
-  }
-  Object.assign(watchTimeMap, map);
-}
-
-export function getWatchTimeMap(): Record<string, number> {
-  return watchTimeMap;
-}
 let autoState: AutoState = {
   isActive: false,
   isStandby: false,
@@ -142,80 +161,11 @@ if (typeof chrome !== 'undefined' && chrome.webRequest && chrome.webRequest.onBe
 async function checkSubOnlyAuthViaGql(
   streamersOrLogins: string[] | { user_login: string }[]
 ): Promise<Record<string, boolean>> {
-  if (!streamersOrLogins || streamersOrLogins.length === 0 || !dynamicClientId) return {};
-
-  try {
-    const authToken = await getTwitchAuthToken();
-    const deviceId = await getTwitchDeviceId();
-
-    const headers: Record<string, string> = {
-      'Client-ID': dynamicClientId,
-      'Content-Type': 'text/plain; charset=UTF-8',
-    };
-
-    if (deviceId) headers['Device-ID'] = deviceId;
-    if (authToken) headers['Authorization'] = `OAuth ${authToken}`;
-
-    const logins = streamersOrLogins.map((item) => (typeof item === 'string' ? item : item.user_login));
-    const bodyPayload = logins.map((login) => ({
-      operationName: 'PlaybackAccessTokenQuery',
-      query: `
-        query PlaybackAccessTokenQuery($login: String!) {
-          streamPlaybackAccessToken(channelName: $login, params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) {
-            authorization {
-              isForbidden
-              forbiddenReasonCode
-            }
-          }
-        }
-      `,
-      variables: { login },
-    }));
-
-    const response = await fetch('https://gql.twitch.tv/gql', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(bodyPayload),
-    });
-
-    if (!response.ok) return {};
-
-    const data = await response.json();
-    const subOnlyMap: Record<string, boolean> = {};
-
-    if (Array.isArray(data)) {
-      data.forEach((item: GqlPlaybackAccessTokenResponseItem, idx: number) => {
-        const login = logins[idx];
-        const auth = item?.data?.streamPlaybackAccessToken?.authorization;
-        if (login && auth) {
-          const isSubOnly = !!auth.isForbidden && (auth.forbiddenReasonCode === 'UNAUTHORIZED_ENTITLEMENTS' || auth.forbiddenReasonCode === 'SUB_ONLY');
-          subOnlyMap[login.toLowerCase()] = isSubOnly;
-        }
-      });
-    }
-
-    return subOnlyMap;
-  } catch (e) {
-    console.error('[gnb-twipper] Error checking sub-only API status:', e);
-    return {};
-  }
+  const authToken = await getTwitchAuthToken();
+  const deviceId = await getTwitchDeviceId();
+  return checkSubOnlyAuthViaGqlUtil(streamersOrLogins, dynamicClientId, authToken, deviceId);
 }
 
-export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
-  const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
-
-  // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
-  for (const key of Object.keys(watchTimeMap)) {
-    if (!currentLiveLogins.has(key)) {
-      delete watchTimeMap[key];
-    }
-  }
-
-  return fetched.map((s) => ({
-    ...s,
-    watch_time_seconds: watchTimeMap[s.user_login.toLowerCase()] || 0,
-  }));
-}
 
 function startWatchTimer() {
   if (watchTimer !== null) return;
@@ -281,35 +231,6 @@ chrome.storage.local.get(['settings'], async (result) => {
   }
 });
 
-// Helper to get Twitch auth-token cookie
-export async function getTwitchAuthToken(): Promise<string | null> {
-  return new Promise((resolve) => {
-    chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'auth-token' }, (cookie) => {
-      if (cookie && cookie.value) {
-        console.log('[gnb-twipper] Auth-token found via www.twitch.tv URL');
-        resolve(cookie.value);
-        return;
-      }
-      chrome.cookies.get({ url: 'https://gql.twitch.tv', name: 'auth-token' }, (cookie2) => {
-        if (cookie2 && cookie2.value) {
-          console.log('[gnb-twipper] Auth-token found via gql.twitch.tv URL');
-          resolve(cookie2.value);
-          return;
-        }
-        chrome.cookies.getAll({ name: 'auth-token' }, (cookies) => {
-          const match = cookies.find((c) => c.domain.includes('twitch.tv'));
-          if (match && match.value) {
-            console.log('[gnb-twipper] Auth-token found via cookies.getAll search for twitch.tv');
-            resolve(match.value);
-          } else {
-            console.warn('[gnb-twipper] Auth-token cookie NOT found');
-            resolve(null);
-          }
-        });
-      });
-    });
-  });
-}
 
 let zeroStreamerCount = 0;
 let domScrapeRetryTimer: any = null;
@@ -336,180 +257,12 @@ function requestDomScrapeFromTabs(retryCount = 0) {
   }
 }
 
-// Get unified userScripts API for Chrome and Firefox
-function getUserScriptsApi(): typeof chrome.userScripts | null {
-  if (typeof chrome !== 'undefined' && chrome.userScripts) {
-    return chrome.userScripts;
-  }
-  if (typeof (globalThis as any).browser !== 'undefined' && (globalThis as any).browser.userScripts) {
-    return (globalThis as any).browser.userScripts;
-  }
-  return null;
-}
 
-// Sync custom user script with userScripts API
-export async function syncCustomUserScript(appSettings: AppSettings): Promise<{ allowed: boolean; error?: string }> {
-  const userScriptsApi = getUserScriptsApi();
-  if (!userScriptsApi) {
-    console.warn('[gnb-twipper] userScripts API is not available in this environment.');
-    return { allowed: false, error: 'API unavailable' };
-  }
-
-  const scriptId = 'gnb-twipper-custom-script';
-
-  try {
-    // Check if userScripts API is available / allowed (Developer mode check in Chrome)
-    const existing = await userScriptsApi.getScripts({ ids: [scriptId] });
-    if (existing.length > 0) {
-      await userScriptsApi.unregister({ ids: [scriptId] });
-    }
-
-    if (appSettings.customJsEnabled && appSettings.customJs && appSettings.customJs.trim()) {
-      await userScriptsApi.register([
-        {
-          id: scriptId,
-          matches: ['*://*.twitch.tv/*'],
-          js: [{ code: appSettings.customJs }],
-          world: 'MAIN',
-          runAt: 'document_idle',
-        },
-      ]);
-      console.log('[gnb-twipper] Custom user script successfully registered via userScripts API');
-    }
-    return { allowed: true };
-  } catch (err: any) {
-    console.warn('[gnb-twipper] Error syncing user script via userScripts API:', err);
-    return { allowed: false, error: err?.message || String(err) };
-  }
-}
-
-// Check user script status
-export async function checkUserScriptsStatus(): Promise<{ allowed: boolean; error?: string }> {
-  const userScriptsApi = getUserScriptsApi();
-  if (!userScriptsApi) {
-    return { allowed: false, error: 'API unavailable' };
-  }
-  try {
-    await userScriptsApi.getScripts();
-    return { allowed: true };
-  } catch (err: any) {
-    return { allowed: false, error: err?.message || String(err) };
-  }
-}
-
-// Helper to get Twitch device-id (unique_id cookie)
-export async function getTwitchDeviceId(): Promise<string | null> {
-  return new Promise((resolve) => {
-    chrome.cookies.get({ url: 'https://www.twitch.tv', name: 'unique_id' }, (cookie) => {
-      if (cookie && cookie.value) {
-        resolve(cookie.value);
-      } else {
-        chrome.cookies.getAll({ name: 'unique_id' }, (cookies) => {
-          const match = cookies.find((c) => c.domain.includes('twitch.tv'));
-          resolve(match ? match.value : null);
-        });
-      }
-    });
-  });
-}
 
 let lastGqlFetchTime = 0;
 const MIN_GQL_INTERVAL_MS = 5000; // 5秒以内の連続GQLリクエストを抑止
 
-async function sendFollowedLiveGqlRequest(
-  clientId: string,
-  authToken: string | null,
-  deviceId: string | null
-): Promise<Response> {
-  console.log('[gnb-twipper] [GQL Request] Sending request to https://gql.twitch.tv/gql', {
-    time: new Date().toLocaleTimeString(),
-    hasAuthToken: !!authToken,
-    hasDeviceId: !!deviceId,
-    hasClientId: !!clientId,
-  });
 
-  const headers: Record<string, string> = {
-    'Client-ID': clientId,
-    'Content-Type': 'text/plain; charset=UTF-8',
-  };
-
-  if (deviceId) {
-    headers['Device-ID'] = deviceId;
-  }
-
-  if (authToken) {
-    headers['Authorization'] = `OAuth ${authToken}`;
-  }
-
-  const bodyPayload = [
-    {
-      operationName: 'GnbFollowsLiveQuery',
-      query: `
-        query GnbFollowsLiveQuery {
-          currentUser {
-            id
-            follows(first: 100) {
-              edges {
-                node {
-                  id
-                  login
-                  displayName
-                  profileImageURL(width: 70)
-                  stream {
-                    id
-                    title
-                    viewersCount
-                    game {
-                      name
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      `,
-    },
-  ];
-
-  return fetch('https://gql.twitch.tv/gql', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(bodyPayload),
-  });
-}
-
-export function parseFollowedLiveGqlResponse(data: any): StreamInfo[] | null {
-  if (data && Array.isArray(data) && data[0]?.errors) {
-    console.warn('[gnb-twipper] GQL returned errors:', data[0].errors);
-  }
-
-  const currentUser = data?.[0]?.data?.currentUser;
-  if (!currentUser) {
-    console.warn('[gnb-twipper] GQL currentUser is null. Token may be invalid or Twitch Integrity protection triggered.');
-    return null;
-  }
-
-  const edges = currentUser.follows?.edges || [];
-  const rawFetched: StreamInfo[] = [];
-
-  edges.forEach((edge: any) => {
-    const node = edge?.node;
-    const stream = node?.stream;
-    if (node && stream) {
-      rawFetched.push({
-        user_login: node.login,
-        user_name: node.displayName || node.login,
-        title: stream.title || '',
-        game_name: stream.game?.name || '',
-        profile_image_url: node.profileImageURL || '',
-        viewer_count: stream.viewersCount || 0,
-      });
-    }
-  });
-
-  return rawFetched;
-}
 
 // Fetch followed live channels via Twitch GQL API
 async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
