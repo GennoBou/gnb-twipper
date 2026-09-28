@@ -49,7 +49,8 @@ export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
  * 指定したチャンネルの視聴時間を 1 秒加算し、加算後の視聴秒数を返す
  */
 export function incrementWatchTime(login: string): number {
-  const key = login.toLowerCase();
+  if (!login || !login.trim()) return 0;
+  const key = login.trim().toLowerCase();
   watchTimeMap[key] = (watchTimeMap[key] || 0) + 1;
   return watchTimeMap[key];
 }
@@ -58,5 +59,6 @@ export function incrementWatchTime(login: string): number {
  * 指定したチャンネルの視聴時間記録を削除する
  */
 export function removeWatchTime(login: string): void {
-  delete watchTimeMap[login.toLowerCase()];
+  if (!login || !login.trim()) return;
+  delete watchTimeMap[login.trim().toLowerCase()];
 }

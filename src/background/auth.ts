@@ -29,7 +29,7 @@ export async function getTwitchAuthToken(): Promise<string | null> {
           return;
         }
         chrome.cookies.getAll({ name: 'auth-token' }, (cookies) => {
-          const match = cookies?.find((c) => c.domain.includes('twitch.tv'));
+          const match = cookies?.find((c) => c.domain?.includes('twitch.tv'));
           if (match && match.value) {
             console.log('[gnb-twipper] Auth-token found via cookies.getAll search for twitch.tv');
             resolve(match.value);
@@ -58,7 +58,7 @@ export async function getTwitchDeviceId(): Promise<string | null> {
         resolve(cookie.value);
       } else {
         chrome.cookies.getAll({ name: 'unique_id' }, (cookies) => {
-          const match = cookies?.find((c) => c.domain.includes('twitch.tv'));
+          const match = cookies?.find((c) => c.domain?.includes('twitch.tv'));
           resolve(match ? match.value : null);
         });
       }
