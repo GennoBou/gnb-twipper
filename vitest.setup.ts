@@ -56,3 +56,12 @@ vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
   ok: true,
   json: () => Promise.resolve([]),
 }));
+
+// Happy DOM 環境で Svelte トランジション破棄時に発生する AbortError を抑制
+if (typeof process !== 'undefined' && process.on) {
+  process.on('unhandledRejection', (reason: any) => {
+    if (reason && (reason.name === 'AbortError' || reason.message?.includes('The animation was canceled'))) {
+      return;
+    }
+  });
+}
