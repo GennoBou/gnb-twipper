@@ -74,7 +74,7 @@ function remountTriggerComponent() {
     } catch (e) {}
     triggerComponent = null;
   }
-  root.innerHTML = '';
+  root.replaceChildren();
 
   triggerComponent = mount(GnbNavTrigger, {
     target: root,

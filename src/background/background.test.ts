@@ -67,6 +67,9 @@ const {
   getTwitchDeviceId,
   syncCustomUserScript,
   getTwitchAuthToken,
+  refreshActiveTwitchChannelCache,
+  getCachedActiveTwitchChannel,
+  getCachedTwitchTabIds,
 } = await import('./background');
 import type { AppSettings, StreamInfo } from '../types';
 
@@ -698,3 +701,90 @@ describe('syncCustomUserScript', () => {
     consoleWarnSpy.mockRestore();
   });
 });
+
+describe('refreshActiveTwitchChannelCache', () => {
+  beforeEach(() => {
+    mockChrome.tabs.query.mockReset();
+    delete (mockChrome.runtime as any).lastError;
+  });
+
+  it('chrome が未定義の場合は何もしない', () => {
+    const originalChrome = (globalThis as any).chrome;
+    delete (globalThis as any).chrome;
+    expect(() => refreshActiveTwitchChannelCache()).not.toThrow();
+    (globalThis as any).chrome = originalChrome;
+  });
+
+  it('chrome.tabs または chrome.tabs.query が未定義の場合は安全に早期リターンする', () => {
+    const originalTabs = mockChrome.tabs;
+    (mockChrome as any).tabs = undefined;
+    expect(() => refreshActiveTwitchChannelCache()).not.toThrow();
+    (mockChrome as any).tabs = originalTabs;
+  });
+
+  it('chrome.runtime.lastError が存在する場合はキャッシュ更新を中断する', () => {
+    (mockChrome.runtime as any).lastError = { message: 'Failed to query tabs' };
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb([{ id: 101, url: 'https://www.twitch.tv/active_user', active: true }]);
+    });
+
+    const initialChannel = getCachedActiveTwitchChannel();
+    refreshActiveTwitchChannelCache();
+    expect(getCachedActiveTwitchChannel()).toBe(initialChannel);
+  });
+
+  it('アクティブな Twitch タブが存在する場合、その URL からチャンネル名を抽出しキャッシュを更新する', () => {
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb([
+        { id: 1, url: 'https://www.twitch.tv/inactive_user', active: false },
+        { id: 2, url: 'https://www.twitch.tv/Streamer_Alpha', active: true },
+      ]);
+    });
+
+    refreshActiveTwitchChannelCache();
+
+    expect(getCachedActiveTwitchChannel()).toBe('streamer_alpha');
+    const tabIds = getCachedTwitchTabIds();
+    expect(tabIds.has(1)).toBe(true);
+    expect(tabIds.has(2)).toBe(true);
+  });
+
+  it('アクティブなタブがない場合、先頭の Twitch タブの URL からチャンネル名を取得する', () => {
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb([
+        { id: 10, url: 'https://www.twitch.tv/Fallback_Streamer', active: false },
+        { id: 20, url: 'https://www.twitch.tv/Other_Streamer', active: false },
+      ]);
+    });
+
+    refreshActiveTwitchChannelCache();
+
+    expect(getCachedActiveTwitchChannel()).toBe('fallback_streamer');
+    const tabIds = getCachedTwitchTabIds();
+    expect(tabIds.has(10)).toBe(true);
+    expect(tabIds.has(20)).toBe(true);
+  });
+
+  it('タブが空配列の場合はキャッシュが null になり tabIds は空になる', () => {
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb([]);
+    });
+
+    refreshActiveTwitchChannelCache();
+
+    expect(getCachedActiveTwitchChannel()).toBeNull();
+    expect(getCachedTwitchTabIds().size).toBe(0);
+  });
+
+  it('tabs 引数が null の場合も安全にハンドリングされる', () => {
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb(null);
+    });
+
+    refreshActiveTwitchChannelCache();
+
+    expect(getCachedActiveTwitchChannel()).toBeNull();
+    expect(getCachedTwitchTabIds().size).toBe(0);
+  });
+});
+

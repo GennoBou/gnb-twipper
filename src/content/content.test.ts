@@ -5,6 +5,7 @@ import {
   isOfflineChannel,
   extractUserNameFromAria,
   extractUserName,
+  cleanText,
   parseViewerCount,
   parseStreamerFromLink,
 } from './streamer-parser';
@@ -87,6 +88,38 @@ describe('src/content/content.ts DOM Parsing Helpers', () => {
 
     it('詳細情報やアクセシビリティ指示等のテキストは cleanText により除去される', () => {
       expect(extractUserNameFromAria('詳細情報')).toBe('');
+    });
+  });
+
+  describe('cleanText', () => {
+    it('null または undefined が渡された場合に空文字列を返す', () => {
+      expect(cleanText(null)).toBe('');
+      expect(cleanText(undefined)).toBe('');
+    });
+
+    it('空文字列が渡された場合に空文字列を返す', () => {
+      expect(cleanText('')).toBe('');
+    });
+
+    it('空白のみの文字列（スペース、タブ、改行）が渡された場合に空文字列を返す', () => {
+      expect(cleanText('   ')).toBe('');
+      expect(cleanText('\t\n  ')).toBe('');
+    });
+
+    it('除外キーワードを含む文字列が渡された場合に空文字列を返す', () => {
+      expect(cleanText('詳細情報')).toBe('');
+      expect(cleanText('詳細')).toBe('');
+      expect(cleanText('Press right arrow to view')).toBe('');
+      expect(cleanText('ボタンを押すと再生')).toBe('');
+    });
+
+    it('前後に余分な空白が含まれる正常文字列をトリムして返す', () => {
+      expect(cleanText('  streamer_abc  ')).toBe('streamer_abc');
+      expect(cleanText('\n  配信者名 \t ')).toBe('配信者名');
+    });
+
+    it('通常の文字列をそのまま返す', () => {
+      expect(cleanText('TwitchStreamer123')).toBe('TwitchStreamer123');
     });
   });
 

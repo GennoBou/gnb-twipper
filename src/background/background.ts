@@ -106,6 +106,14 @@ export function refreshActiveTwitchChannelCache(): void {
   });
 }
 
+export function getCachedActiveTwitchChannel(): string | null {
+  return cachedActiveTwitchChannel;
+}
+
+export function getCachedTwitchTabIds(): Set<number> {
+  return cachedTwitchTabIds;
+}
+
 // タブ関連のイベントリスナーを設定してアクティブチャンネルキャッシュを更新
 if (typeof chrome !== 'undefined' && chrome.tabs) {
   if (chrome.tabs.onActivated) {
