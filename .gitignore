@@ -1,6 +1,7 @@
 # Node & Build outputs
 node_modules/
 dist/
+dist-firefox/
 frontend/
 *.zip
 

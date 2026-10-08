@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Store listing promotional banner text definitions (1280x800)",
+  "languages": {
+    "ja": {
+      "name": "Japanese (Original)",
+      "banner01": {
+        "title": "Twitchのフォロー配信を\nスマートに自動巡回",
+        "subtitle": "推しの配信を快適ながら見でも\nブラウザ履歴が増えません",
+        "cards": [
+          {
+            "heading": "フォロー配信者をローテーション視聴",
+            "description": "視聴時間が短い新規配信は優先的に視聴します。"
+          },
+          {
+            "heading": "オートのON/OFF、配信のスキップ",
+            "description": "Twitchのトップバーから全てのツールにアクセスできます。"
+          },
+          {
+            "heading": "履歴を増やさず自動巡回",
+            "description": "自動巡回し続けてもブラウザ履歴は増えません。"
+          }
+        ]
+      },
+      "banner02": {
+        "title": "オプション画面で\nカスタマイズもできます",
+        "subtitle": "巡回間隔や除外チャンネルを\nあなたに合わせて調整しましょう",
+        "cards": [
+          {
+            "heading": "巡回間隔を変更できます",
+            "description": "巡回間隔(初期３分)をあなたの視聴スタイルに合わせて調整可能"
+          },
+          {
+            "heading": "とりあえずオート視聴？",
+            "description": "Twitch.tv視聴開始時にオートを開始するかを変更できます"
+          },
+          {
+            "heading": "サブスク限定配信は自動スキップ",
+            "description": "無料プレビューの間は視聴します。それともしません？"
+          },
+          {
+            "heading": "除外チャンネル登録",
+            "description": "24時間配信や音楽チャンネルなど巡回はしないチャンネルを除外リストに追加"
+          }
+        ]
+      }
+    },
+    "en": {
+      "name": "English (Primary Reference)",
+      "banner01": {
+        "title": "Auto-Rotate Followed\nTwitch Streams",
+        "subtitle": "Comfortable hands-free watching with zero history clutter",
+        "cards": [
+          {
+            "heading": "Rotate Followed Streamers",
+            "description": "Prioritizes newly live streams with shorter watch time."
+          },
+          {
+            "heading": "Auto Toggle & Instant Skip",
+            "description": "Access all tools directly from the Twitch top bar."
+          },
+          {
+            "heading": "Clean Browser History",
+            "description": "Browser history never piles up, even during continuous rotation."
+          }
+        ]
+      },
+      "banner02": {
+        "title": "Full Customization in\nOptions Page",
+        "subtitle": "Tailor rotation timing and exclusions to your personal style",
+        "cards": [
+          {
+            "heading": "Adjustable Rotation Interval",
+            "description": "Customize the interval (default 3 min) to match your rhythm."
+          },
+          {
+            "heading": "Auto-Start on Twitch Access?",
+            "description": "Choose whether to begin rotation automatically when opening Twitch."
+          },
+          {
+            "heading": "Skip Subscriber-Only Streams",
+            "description": "Watch during free previews, or skip immediately? You decide."
+          },
+          {
+            "heading": "Exclusion Channel List",
+            "description": "Exclude 24/7 loops, music bots, or specific channels from queue."
+          }
+        ]
+      }
+    }
+  }
+}

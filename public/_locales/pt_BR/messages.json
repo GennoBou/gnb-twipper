@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "GNB Twipper for Twitch",
+    "description": "Nome da extensão."
+  },
+  "appDesc": {
+    "message": "Alterne e percorra automaticamente as transmissões ao vivo que você segue na Twitch.",
+    "description": "Descrição da extensão."
+  }
+}

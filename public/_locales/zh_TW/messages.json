@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "GNB Twipper for Twitch",
+    "description": "擴充功能名稱"
+  },
+  "appDesc": {
+    "message": "在 Twitch 上自動輪播與瀏覽你所追隨的即時直播頻道。",
+    "description": "擴充功能描述"
+  }
+}

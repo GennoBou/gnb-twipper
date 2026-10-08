@@ -17,10 +17,12 @@ export interface ExcludedChannel {
   addedAt: number; // 登録タイムスタンプ
 }
 
+export type SupportedLanguage = 'ja' | 'en' | 'es' | 'pt-BR' | 'de' | 'fr' | 'zh-TW';
+
 export interface AppSettings {
   rotationTimeMinutes: number; // 回転時間（分）
   autoStartOnLogin: boolean; // 起動時にオートモードを自動開始するか
-  language: 'ja' | 'en'; // UI言語
+  language: SupportedLanguage; // UI言語
   customCss: string; // カスタムインジェクションCSS
   customJs: string; // カスタムインジェクションJS
   customCssEnabled: boolean;

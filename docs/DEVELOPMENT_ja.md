@@ -91,4 +91,5 @@ URL パース、ユーザー名抽出、ローテーション計算などのユ�
 ```powershell
 npm run build-zip
 ```
-`npm run build` を実行した後、`dist/` 配下のファイルを `chrome-extension-v1.0.0.zip` にアーカイブします。Chrome Web Store への提出用パッケージとして使用します。
+`npm run build` を実行した後、Chrome / Opera 用パッケージ（`chrome-extension-v1.0.0.zip`）および Firefox (AMO) 用パッケージ（`firefox-extension-v1.0.0.zip`）を自動生成します。
+Firefox 向けには `dist-firefox/` が自動生成され、アドオンID（`browser_specific_settings.gecko.id`）の付与や Service Worker から Background Scripts への互換調整が行われた状態でパッケージングされます。

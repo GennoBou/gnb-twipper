@@ -32,17 +32,8 @@ jobs:
       - name: Build extension bundle
         run: npm run build
 
-      - name: Package extension ZIP for Chrome / Opera
-        run: |
-          cd dist
-          zip -r ../chrome-extension-${{ github.ref_name }}.zip .
-          cd ..
-
-      - name: Package extension ZIP for Firefox
-        run: |
-          cd dist
-          zip -r ../firefox-extension-${{ github.ref_name }}.zip .
-          cd ..
+      - name: Package extension ZIPs (Chrome / Opera & Firefox)
+        run: node scripts/package-zip.js
 
       - name: Create GitHub Release
         id: create_release
@@ -75,4 +66,4 @@ jobs:
           WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
         if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
         run: |
-          npx web-ext sign --source-dir dist --api-key $WEB_EXT_API_KEY --api-secret $WEB_EXT_API_SECRET
+          npx web-ext sign --source-dir dist-firefox --api-key $WEB_EXT_API_KEY --api-secret $WEB_EXT_API_SECRET

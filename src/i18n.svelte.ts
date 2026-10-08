@@ -1,17 +1,55 @@
 import ja from "./locales/ja.json";
 import en from "./locales/en.json";
+import es from "./locales/es.json";
+import ptBR from "./locales/pt-BR.json";
+import de from "./locales/de.json";
+import fr from "./locales/fr.json";
+import zhTW from "./locales/zh-TW.json";
+import type { SupportedLanguage } from "./types";
 
 // 言語リソース辞書の型定義
 export type LocaleDictionary = Record<string, string>;
 
 // 利用可能な言語辞書
-const translations: Record<string, LocaleDictionary> = { en, ja };
+const translations: Record<string, LocaleDictionary> = {
+  en,
+  ja,
+  es,
+  "pt-BR": ptBR,
+  de,
+  fr,
+  "zh-TW": zhTW,
+};
 
-// 初期言語の自動判定 (標準は英語、日本語環境は日本語)
+// サポート言語コード一覧
+export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
+  "ja",
+  "en",
+  "es",
+  "pt-BR",
+  "de",
+  "fr",
+  "zh-TW",
+] as const;
+
+// 言語コードの正規化ヘルパー (pt_BR -> pt-BR, zh_TW -> zh-TW 等を吸収)
+export function normalizeLanguageCode(langCode: string): string {
+  const lower = langCode.toLowerCase().replace("_", "-");
+  if (lower.startsWith("ja")) return "ja";
+  if (lower.startsWith("es")) return "es";
+  if (lower.startsWith("pt")) return "pt-BR";
+  if (lower.startsWith("de")) return "de";
+  if (lower.startsWith("fr")) return "fr";
+  if (lower.startsWith("zh")) return "zh-TW";
+  if (lower.startsWith("en")) return "en";
+  return langCode in translations ? langCode : "en";
+}
+
+// 初期言語の自動判定 (ブラウザ設定に合わせて自動選択、未サポート時は英語)
 export function detectInitialLanguage(): string {
   try {
     const browserLang = (typeof chrome !== "undefined" && chrome.i18n?.getUILanguage?.()) || navigator.language || "en";
-    return browserLang.toLowerCase().startsWith("ja") ? "ja" : "en";
+    return normalizeLanguageCode(browserLang);
   } catch {
     return "en";
   }
@@ -30,7 +68,8 @@ export const i18n = {
    * 表示言語を設定 (辞書が存在しない言語の場合は英語 'en' にフォールバック)
    */
   set lang(value: string) {
-    const nextLang = value in translations ? value : "en";
+    const candidate = normalizeLanguageCode(value);
+    const nextLang = candidate in translations ? candidate : "en";
     if (currentLang !== nextLang) {
       currentLang = nextLang;
     }
@@ -55,4 +94,3 @@ export const i18n = {
     return str;
   }
 };
-

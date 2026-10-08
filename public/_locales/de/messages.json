@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "GNB Twipper for Twitch",
+    "description": "Name der Erweiterung."
+  },
+  "appDesc": {
+    "message": "Automatische Rotation durch die von Ihnen gefolgten Live-Streams auf Twitch.",
+    "description": "Beschreibung der Erweiterung."
+  }
+}

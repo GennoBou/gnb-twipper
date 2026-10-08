@@ -406,6 +406,11 @@
         <select id="language" bind:value={settings.language} class="select-input">
           <option value="ja">{i18n.t("langJapanese")}</option>
           <option value="en">{i18n.t("langEnglish")}</option>
+          <option value="es">{i18n.t("langSpanish")}</option>
+          <option value="pt-BR">{i18n.t("langPortuguese")}</option>
+          <option value="de">{i18n.t("langGerman")}</option>
+          <option value="fr">{i18n.t("langFrench")}</option>
+          <option value="zh-TW">{i18n.t("langChineseTW")}</option>
         </select>
         <p class="help-text">{i18n.t("languageDesc")}</p>
       </div>
@@ -515,7 +520,7 @@
     color: #f1f5f9;
   }
 
-  .form-group {
+  .form-group:not(:last-child) {
     margin-bottom: 16px;
   }
 
@@ -676,10 +681,14 @@
     font-size: 12px;
     color: #94a3b8;
     margin-top: 4px;
+    margin-bottom: 0;
+  }
+
+  .help-text:not(:last-child) {
     margin-bottom: 12px;
   }
 
-  .editor-block {
+  .editor-block:not(:last-child) {
     margin-bottom: 16px;
   }
 

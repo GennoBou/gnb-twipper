@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "GNB Twipper for Twitch",
+    "description": "Nom de l'extension."
+  },
+  "appDesc": {
+    "message": "Basculez et parcourez automatiquement les streams en direct que vous suivez sur Twitch.",
+    "description": "Description de l'extension."
+  }
+}
