@@ -9,5 +9,8 @@ export default defineConfig({
   test: {
     setupFiles: ['./vitest.setup.ts'],
     exclude: [...configDefaults.exclude, '**/*.bench.test.ts'],
+    experimental: {
+      fsModuleCache: true,
+    },
   },
 });
