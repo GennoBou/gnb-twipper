@@ -283,7 +283,7 @@ const MIN_GQL_INTERVAL_MS = 5000; // 5秒以内の連続GQLリクエストを抑
 
 
 // Fetch followed live channels via Twitch GQL API
-async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
+async function fetchFollowedLiveChannels(skipEvaluate = false): Promise<StreamInfo[]> {
   const now = Date.now();
   if (now - lastGqlFetchTime < MIN_GQL_INTERVAL_MS) {
     console.log(`[gnb-twipper] [GQL Throttle] Skipped GQL request (last request was ${now - lastGqlFetchTime}ms ago). Returning cached streamers (${liveStreamers.length}).`);
@@ -345,7 +345,9 @@ async function fetchFollowedLiveChannels(): Promise<StreamInfo[]> {
 
     liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
     resetRefreshAlarm();
-    evaluateAutoState();
+    if (!skipEvaluate) {
+      evaluateAutoState();
+    }
 
     if (fetchedStreamers.length === 0) {
       console.log('[gnb-twipper] GQL returned 0 live streamers. Requesting DOM scrape fallback to double check.');
@@ -522,24 +524,34 @@ function selectNextStreamer(candidates: StreamInfo[], currentLogin: string): Str
   return sortedPool[0];
 }
 
+let isRotating = false;
+
 // Rotate to next channel in Queue
 async function rotateToNextChannel() {
-  // スキップ直前に最新の配信中リストを即時取得して最新化
-  await fetchFollowedLiveChannels();
+  if (isRotating) return;
+  isRotating = true;
+  try {
+    // スキップ直前に最新の配信中リストを即時取得して最新化（内部での再帰的 evaluateAutoState を抑止）
+    await fetchFollowedLiveChannels(true);
 
-  const candidates = getAutoRotationCandidates();
+    const candidates = getAutoRotationCandidates();
 
-  if (candidates.length >= 2) {
-    const nextStreamer = selectNextStreamer(candidates, autoState.currentChannel);
+    if (candidates.length >= 2) {
+      const nextStreamer = selectNextStreamer(candidates, autoState.currentChannel);
 
-    autoState.isStandby = false;
-    autoState.currentChannel = nextStreamer.user_login;
-    startTimer();
+      autoState.isStandby = false;
+      autoState.currentChannel = nextStreamer.user_login;
+      if (autoState.isActive) {
+        startTimer();
+      }
 
-    navigateToChannel(nextStreamer.user_login);
-    broadcastState();
-  } else {
-    evaluateAutoState();
+      navigateToChannel(nextStreamer.user_login);
+      broadcastState();
+    } else {
+      evaluateAutoState();
+    }
+  } finally {
+    isRotating = false;
   }
 }
 
