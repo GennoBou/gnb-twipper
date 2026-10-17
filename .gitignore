@@ -2,31 +2,57 @@
 node_modules/
 dist/
 dist-firefox/
-frontend/
 *.zip
+.vite/
+*.tsbuildinfo
 
-# Local thinking process and temporary files
-/docs/local/
-
-# Wails build outputs and temp files
-build/bin/
-/bin/
-/.task/
-.wails/
-
-# Windows temp files
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Tests & Logs
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Environment variables
 .env
 .env.local
+.env.*.local
 
-# Go binary and dependencies
+# Local thinking process and temporary files
+/docs/local/
+
+# AI, Serena & Analysis tools
+repomix-output.*
+.gemini/
+.serena/cache/
+.serena/project.local.yml
+
+# IDE & Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS temporary files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+._*
+
+# Legacy artifacts (Wails v3 / Go remnants)
+frontend/
+build/bin/
+/bin/
+/.task/
+.wails/
 /gnb-twipper.exe
 /gnb-twipper
 /vendor/
-
-# Antigravity / Gemini internal
-.gemini/
