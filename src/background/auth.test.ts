@@ -46,13 +46,15 @@ describe('src/background/auth.ts', () => {
       expect(token).toBe('gql_token_456');
     });
 
-    it('個別URLで失敗した場合、cookies.getAll からドメイン検索で取得する（domain が undefined の cookie が混在していても安全に処理する）', async () => {
+    it('個別URLで失敗した場合、cookies.getAll からドメイン検索で取得する（domain が undefined や偽装ドメインの cookie が混在していても安全に除外する）', async () => {
       (globalThis as any).chrome = {
         cookies: {
           get: vi.fn((_details, cb) => cb(null)),
           getAll: vi.fn((_details, cb) =>
             cb([
               { value: 'other_token' }, // domain が undefined
+              { value: 'spoof_token_1', domain: 'evil-twitch.tv' },
+              { value: 'spoof_token_2', domain: 'twitch.tv.attacker.com' },
               { value: 'global_token_789', domain: '.twitch.tv' },
             ])
           ),

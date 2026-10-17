@@ -541,7 +541,7 @@ function navigateToChannel(channel: string) {
       if (!targetTab || !targetTab.id) return;
 
       const tabId = targetTab.id;
-      const targetChannelLower = channel.toLowerCase();
+      const targetChannelLower = safeChannel.toLowerCase();
 
       // すでに目的のチャンネルを開いている場合はナビゲーション不要
       if (targetTab.url) {
@@ -804,12 +804,22 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+function isTwitchTabUrl(url?: string): boolean {
+  if (!url) return false;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === 'twitch.tv' || host.endsWith('.twitch.tv');
+  } catch {
+    return false;
+  }
+}
+
 // Auto-start auto mode when Twitch tab is opened/loaded if autoStartOnLogin is enabled (initial load only)
 chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' || changeInfo.url) {
     refreshActiveTwitchChannelCache();
   }
-  if (changeInfo.status === 'complete' && tab.url && tab.url.includes('twitch.tv')) {
+  if (changeInfo.status === 'complete' && isTwitchTabUrl(tab.url)) {
     const alreadyStarted = await isInitialAutoStarted();
     if (settings.autoStartOnLogin && !autoState.isActive && !alreadyStarted) {
       console.log('[gnb-twipper] Initial Twitch tab loaded/updated. Auto-starting Auto Mode via autoStartOnLogin.');

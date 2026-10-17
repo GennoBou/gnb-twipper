@@ -3,10 +3,19 @@
  */
 
 /**
+ * ドメイン文字列が正規の twitch.tv ドメイン（またはサブドメイン）か判定する
+ */
+function isTwitchCookieDomain(domain?: string): boolean {
+  if (!domain) return false;
+  const lower = domain.toLowerCase();
+  return lower === 'twitch.tv' || lower.endsWith('.twitch.tv');
+}
+
+/**
  * Twitch の auth-token Cookie を取得する
  * 1. www.twitch.tv の Cookie
  * 2. gql.twitch.tv の Cookie
- * 3. ドメイン名に twitch.tv を含む Cookie (getAll)
+ * 3. ドメイン名が twitch.tv に一致する Cookie (getAll)
  * の優先順位でフォールバック探索を行う
  */
 export async function getTwitchAuthToken(): Promise<string | null> {
@@ -29,7 +38,7 @@ export async function getTwitchAuthToken(): Promise<string | null> {
           return;
         }
         chrome.cookies.getAll({ name: 'auth-token' }, (cookies) => {
-          const match = cookies?.find((c) => c.domain?.includes('twitch.tv'));
+          const match = cookies?.find((c) => isTwitchCookieDomain(c.domain));
           if (match && match.value) {
             console.log('[gnb-twipper] Auth-token found via cookies.getAll search for twitch.tv');
             resolve(match.value);
@@ -58,7 +67,7 @@ export async function getTwitchDeviceId(): Promise<string | null> {
         resolve(cookie.value);
       } else {
         chrome.cookies.getAll({ name: 'unique_id' }, (cookies) => {
-          const match = cookies?.find((c) => c.domain?.includes('twitch.tv'));
+          const match = cookies?.find((c) => isTwitchCookieDomain(c.domain));
           resolve(match ? match.value : null);
         });
       }

@@ -178,17 +178,22 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
         performAndSendDomScrape();
       } else if (msg.type === 'NAVIGATE_TO_CHANNEL_REPLACE') {
         if (msg.channel) {
+          const safeChannel = msg.channel.trim().replace(/[^a-zA-Z0-9_]/g, '');
+          if (!safeChannel) {
+            if (sendResponse) sendResponse({ success: false });
+            return false;
+          }
           const currentPath = getCurrentChannelPath();
-          const targetChannel = msg.channel.toLowerCase();
+          const targetChannel = safeChannel.toLowerCase();
 
           // すでに同一チャンネルを視聴中の場合は再遷移を行わない
           if (currentPath === targetChannel) {
-            console.log(`[gnb-twipper] Already on channel @${msg.channel}. Skipping navigation.`);
+            console.log(`[gnb-twipper] Already on channel @${safeChannel}. Skipping navigation.`);
             if (sendResponse) sendResponse({ success: true, skipped: true });
             return true;
           }
 
-          const targetUrl = `https://www.twitch.tv/${msg.channel}`;
+          const targetUrl = `https://www.twitch.tv/${safeChannel}`;
           if (sendResponse) sendResponse({ success: true });
 
           // Background側がレスポンスを受け取ってから履歴を増やさずに上書き遷移

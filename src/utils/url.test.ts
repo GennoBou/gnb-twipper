@@ -43,9 +43,12 @@ describe('extractChannelFromUrl', () => {
     expect(extractChannelFromUrl('https://www.twitch.tv/')).toBeNull();
   });
 
-  it('should return null for non-Twitch URLs', () => {
+  it('should return null for non-Twitch URLs or spoofed domains', () => {
     expect(extractChannelFromUrl('https://www.youtube.com/ninja')).toBeNull();
     expect(extractChannelFromUrl('https://example.com/twitch.tv')).toBeNull();
+    expect(extractChannelFromUrl('https://evil-twitch.tv/ninja')).toBeNull();
+    expect(extractChannelFromUrl('https://twitch.tv.attacker.com/ninja')).toBeNull();
+    expect(extractChannelFromUrl('https://www.twitch.tv/sw.js')).toBeNull();
   });
 
   it('should return null for invalid or empty URL strings', () => {
