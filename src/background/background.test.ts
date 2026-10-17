@@ -788,3 +788,17 @@ describe('refreshActiveTwitchChannelCache', () => {
   });
 });
 
+describe('normalizeRotationMinutes', () => {
+  it('0・負数・null・NaN・undefined をデフォルト値 (3) にフォールバックし、60超を 60 にクランプする', async () => {
+    const { normalizeRotationMinutes } = await import('./background');
+    expect(normalizeRotationMinutes(0)).toBe(3);
+    expect(normalizeRotationMinutes(-5)).toBe(3);
+    expect(normalizeRotationMinutes(null)).toBe(3);
+    expect(normalizeRotationMinutes(undefined)).toBe(3);
+    expect(normalizeRotationMinutes(NaN)).toBe(3);
+    expect(normalizeRotationMinutes(1)).toBe(1);
+    expect(normalizeRotationMinutes(15)).toBe(15);
+    expect(normalizeRotationMinutes(120)).toBe(60);
+  });
+});
+

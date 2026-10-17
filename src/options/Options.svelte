@@ -108,6 +108,10 @@
   let saveTimer: any = null;
   function triggerAutoSave() {
     if (!isLoaded) return;
+    // 数値入力欄を編集中（空欄・0以下）の場合は確定するまで自動保存を待機
+    if (!Number.isFinite(settings.rotationTimeMinutes) || settings.rotationTimeMinutes < 1) {
+      return;
+    }
     saveState = "saving";
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
@@ -117,6 +121,12 @@
 
   function saveSettingsDirectly() {
     if (saveTimer) clearTimeout(saveTimer);
+    const validMinutes = Number.isFinite(settings.rotationTimeMinutes) && settings.rotationTimeMinutes >= 1
+      ? Math.min(60, Math.max(1, Math.round(settings.rotationTimeMinutes)))
+      : 3;
+    if (settings.rotationTimeMinutes !== validMinutes) {
+      settings.rotationTimeMinutes = validMinutes;
+    }
     saveState = "saving";
     chrome.runtime.sendMessage({ type: "SAVE_SETTINGS", settings }, () => {
       if (chrome.runtime.lastError) return;

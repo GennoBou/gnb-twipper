@@ -50,6 +50,15 @@ const DEFAULT_SETTINGS: AppSettings = {
 
 const INITIAL_PRIORITY_WATCH_TIME_SECONDS = 600; // 10分 (初期目標視聴時間: 未視聴・新規配信者の優先巡回基準)
 
+/**
+ * 巡回時間（分）を 1〜60 の有効な整数に正規化する（0・負数・NaN・null による無限リロードループを防止）
+ */
+export function normalizeRotationMinutes(val: unknown): number {
+  const num = typeof val === 'number' ? val : Number(val);
+  if (!Number.isFinite(num) || num < 1) return DEFAULT_SETTINGS.rotationTimeMinutes;
+  return Math.min(60, Math.max(1, Math.round(num)));
+}
+
 let settings: AppSettings = { ...DEFAULT_SETTINGS };
 let cachedExcludedLogins: Set<string> = new Set();
 
@@ -221,6 +230,7 @@ async function markInitialAutoStarted(): Promise<void> {
 chrome.storage.local.get(['settings'], async (result) => {
   if (result.settings) {
     settings = { ...DEFAULT_SETTINGS, ...result.settings };
+    settings.rotationTimeMinutes = normalizeRotationMinutes(settings.rotationTimeMinutes);
   } else {
     chrome.storage.local.set({ settings });
   }
@@ -357,7 +367,8 @@ function resetRefreshAlarm() {
 
 function startTimer() {
   stopTimer();
-  autoState.totalDurationSeconds = settings.rotationTimeMinutes * 60;
+  const validMinutes = normalizeRotationMinutes(settings.rotationTimeMinutes);
+  autoState.totalDurationSeconds = validMinutes * 60;
   autoState.timeRemainingSeconds = autoState.totalDurationSeconds;
 
   countdownTimer = self.setInterval(() => {
@@ -534,6 +545,9 @@ async function rotateToNextChannel() {
 
 // Navigate Twitch tab (履歴を増やさずに上書き遷移)
 function navigateToChannel(channel: string) {
+  const safeChannel = channel.trim().replace(/[^a-zA-Z0-9_]/g, '');
+  if (!safeChannel) return;
+
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
     if (tabs.length > 0) {
       // アクティブなTwitchタブを優先、なければ先頭のタブ
@@ -547,20 +561,20 @@ function navigateToChannel(channel: string) {
       if (targetTab.url) {
         const currentChannel = extractChannelFromUrl(targetTab.url);
         if (currentChannel && currentChannel.toLowerCase() === targetChannelLower) {
-          console.log(`[gnb-twipper] Tab is already on target channel @${channel}. Skipping navigation.`);
+          console.log(`[gnb-twipper] Tab is already on target channel @${safeChannel}. Skipping navigation.`);
           return;
         }
       }
 
-      const targetUrl = `https://www.twitch.tv/${channel}`;
+      const targetUrl = `https://www.twitch.tv/${safeChannel}`;
       chrome.tabs
         .sendMessage(tabId, {
           type: 'NAVIGATE_TO_CHANNEL_REPLACE',
-          channel,
+          channel: safeChannel,
         })
         .then((res) => {
           if (res && res.skipped) {
-            console.log(`[gnb-twipper] Navigation skipped by content script for @${channel}.`);
+            console.log(`[gnb-twipper] Navigation skipped by content script for @${safeChannel}.`);
           }
         })
         .catch(() => {
@@ -623,8 +637,18 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'SAVE_SETTINGS': {
-      settings = { ...settings, ...message.settings };
+      const nextMinutes = normalizeRotationMinutes(
+        message.settings.rotationTimeMinutes ?? settings.rotationTimeMinutes
+      );
+      settings = { ...settings, ...message.settings, rotationTimeMinutes: nextMinutes };
       updateExcludedLoginsCache();
+      if (autoState.isActive && !autoState.isStandby) {
+        const nextTotalSeconds = nextMinutes * 60;
+        autoState.totalDurationSeconds = nextTotalSeconds;
+        if (autoState.timeRemainingSeconds > nextTotalSeconds || autoState.timeRemainingSeconds <= 0) {
+          autoState.timeRemainingSeconds = nextTotalSeconds;
+        }
+      }
       chrome.storage.local.set({ settings }).then(() => {
         evaluateAutoState();
         broadcastState();
@@ -707,12 +731,17 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'SELECT_STREAMER': {
-      autoState.currentChannel = message.channel;
-      navigateToChannel(message.channel);
-      if (autoState.isActive) {
-        autoState.timeRemainingSeconds = settings.rotationTimeMinutes * 60;
+      const safeChannel = message.channel.trim().replace(/[^a-zA-Z0-9_]/g, '');
+      if (safeChannel) {
+        autoState.currentChannel = safeChannel;
+        navigateToChannel(safeChannel);
+        if (autoState.isActive) {
+          const validMinutes = normalizeRotationMinutes(settings.rotationTimeMinutes);
+          autoState.totalDurationSeconds = validMinutes * 60;
+          autoState.timeRemainingSeconds = autoState.totalDurationSeconds;
+        }
+        broadcastState();
       }
-      broadcastState();
       sendResponse({ success: true, autoState });
       break;
     }
