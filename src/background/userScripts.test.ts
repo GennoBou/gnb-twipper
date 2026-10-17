@@ -49,6 +49,20 @@ describe('src/background/userScripts.ts', () => {
 
       expect(getUserScriptsApi()).toBeNull();
     });
+
+    it('Chrome 138+ 等で chrome.userScripts プロパティアクセス自体が例外をスローする場合も安全に null を返す', () => {
+      const throwingChrome = {};
+      Object.defineProperty(throwingChrome, 'userScripts', {
+        get() {
+          throw new Error('userScripts API is not available');
+        },
+      });
+      (globalThis as any).chrome = throwingChrome;
+      (globalThis as any).browser = undefined;
+
+      expect(() => getUserScriptsApi()).not.toThrow();
+      expect(getUserScriptsApi()).toBeNull();
+    });
   });
 
   describe('checkUserScriptsStatus', () => {

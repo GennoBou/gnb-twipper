@@ -90,8 +90,7 @@ export interface GqlFollowedLiveResponseItem {
  * ユーザースクリプト API のステータスレスポンス型
  */
 export interface UserScriptsStatusResponse {
-  apiAvailable: boolean;
-  userScriptsConfigured: boolean;
+  allowed: boolean;
   error?: string;
 }
 

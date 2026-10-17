@@ -4,12 +4,21 @@ import type { AppSettings } from '../types';
  * Chrome / Firefox 共通の userScripts API を取得する
  */
 export function getUserScriptsApi(): typeof chrome.userScripts | null {
-  if (typeof chrome !== 'undefined' && chrome.userScripts) {
-    return chrome.userScripts;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.userScripts) {
+      return chrome.userScripts;
+    }
+  } catch {
+    // Chrome 138+ では「ユーザースクリプトを許可する」が無効な場合にプロパティアクセス自体が例外を投げる
+    return null;
   }
-  const globalEnv = globalThis as { browser?: { userScripts?: typeof chrome.userScripts } };
-  if (typeof globalEnv.browser !== 'undefined' && globalEnv.browser.userScripts) {
-    return globalEnv.browser.userScripts;
+  try {
+    const globalEnv = globalThis as { browser?: { userScripts?: typeof chrome.userScripts } };
+    if (typeof globalEnv.browser !== 'undefined' && globalEnv.browser.userScripts) {
+      return globalEnv.browser.userScripts;
+    }
+  } catch {
+    return null;
   }
   return null;
 }
