@@ -31,6 +31,8 @@ export {
   sendFollowedLiveGqlRequest,
   parseFollowedLiveGqlResponse,
   checkSubOnlyAuthViaGql,
+  getPrimaryTabId,
+  setPrimaryTabId,
 };
 
 console.log('[gnb-twipper] Background Service Worker Initialized');
@@ -67,16 +69,28 @@ function updateExcludedLoginsCache(): void {
     cachedExcludedLogins = new Set();
     return;
   }
-  cachedExcludedLogins = new Set(
-    settings.excludedChannels
-      .filter((item) => item.enabled)
-      .map((item) => item.user_login.toLowerCase())
-  );
+  const newSet = new Set<string>();
+  for (const item of settings.excludedChannels) {
+    if (item.enabled) {
+      newSet.add(item.user_login.toLowerCase());
+    }
+  }
+  cachedExcludedLogins = newSet;
 }
 
 updateExcludedLoginsCache();
 
 let liveStreamers: StreamInfo[] = [];
+let liveStreamersByLogin = new Map<string, StreamInfo>();
+
+function updateLiveStreamers(newStreamers: StreamInfo[]): void {
+  liveStreamers = newStreamers;
+  const newMap = new Map<string, StreamInfo>();
+  for (const s of newStreamers) {
+    newMap.set(s.user_login.toLowerCase(), s);
+  }
+  liveStreamersByLogin = newMap;
+}
 let autoState: AutoState = {
   isActive: false,
   isStandby: false,
@@ -92,6 +106,67 @@ let watchTimer: number | null = null;
 
 let cachedActiveTwitchChannel: string | null = null;
 let cachedTwitchTabIds: Set<number> = new Set();
+let primaryTabId: number | null = null;
+
+/**
+ * 現在オートモードの制御対象となっているプライマリタブの ID を取得する
+ */
+function getPrimaryTabId(): number | null {
+  return primaryTabId;
+}
+
+/**
+ * プライマリタブ ID を設定し、セッションストレージへ永続化する
+ */
+function setPrimaryTabId(tabId: number | null): void {
+  primaryTabId = tabId;
+  try {
+    if (typeof chrome !== 'undefined' && chrome.storage?.session?.set) {
+      Promise.resolve(chrome.storage.session.set({ primaryTabId: tabId })).catch(() => {});
+    }
+  } catch {
+    // テスト環境等で session storage が未定義の場合は無視
+  }
+}
+
+// Service Worker 再起動時にプライマリタブ ID を復元
+try {
+  if (typeof chrome !== 'undefined' && chrome.storage?.session?.get) {
+    Promise.resolve(chrome.storage.session.get(['primaryTabId']))
+      .then((res) => {
+        if (res && typeof res.primaryTabId === 'number' && primaryTabId === null) {
+          primaryTabId = res.primaryTabId;
+        }
+      })
+      .catch(() => {});
+  }
+} catch {
+  // テスト環境等で session storage が未定義の場合は無視
+}
+
+/**
+ * 指定タブ向けの AutoState（他タブでのオート稼働ロック状態を含む）を生成する
+ */
+function getAutoStateForTab(tabId?: number): AutoState {
+  const isLockedByOtherTab = Boolean(
+    autoState.isActive &&
+      primaryTabId !== null &&
+      tabId !== undefined &&
+      tabId !== primaryTabId
+  );
+  return {
+    ...autoState,
+    isLockedByOtherTab,
+  };
+}
+
+/**
+ * Twitch タブ一覧から優先対象となるタブ（アクティブ優先、なければ先頭）を選出する
+ */
+function selectPrimaryTabFromList(tabs?: chrome.tabs.Tab[] | null): chrome.tabs.Tab | undefined {
+  if (!tabs || tabs.length === 0) return undefined;
+  return tabs.find((t) => t.active && t.url) || tabs.find((t) => t.active) || tabs[0];
+}
 
 export function refreshActiveTwitchChannelCache(): void {
   if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return;
@@ -103,11 +178,11 @@ export function refreshActiveTwitchChannelCache(): void {
       tabs.forEach((t) => {
         if (t.id) newTabIds.add(t.id);
       });
-      const activeTab = tabs.find((t) => t.active && t.url);
-      if (activeTab && activeTab.url) {
-        activeChannel = extractChannelFromUrl(activeTab.url);
-      } else if (tabs.length > 0 && tabs[0]?.url) {
-        activeChannel = extractChannelFromUrl(tabs[0].url);
+      const primaryTab = primaryTabId !== null ? tabs.find((t) => t.id === primaryTabId) : undefined;
+      const targetTab =
+        primaryTab || tabs.find((t) => t.active && t.url) || (tabs.length > 0 ? tabs[0] : undefined);
+      if (targetTab && targetTab.url) {
+        activeChannel = extractChannelFromUrl(targetTab.url);
       }
     }
     cachedTwitchTabIds = newTabIds;
@@ -123,7 +198,19 @@ export function getCachedTwitchTabIds(): Set<number> {
   return cachedTwitchTabIds;
 }
 
-// タブ関連のイベントリスナーを設定してアクティブチャンネルキャッシュを更新
+/**
+ * プライマリタブが閉じられた、または Twitch 外へ遷移した場合にオートモードを安全に停止してロックを解除する
+ */
+function handlePrimaryTabLost(tabId: number): void {
+  if (primaryTabId === null || tabId !== primaryTabId) return;
+  if (autoState.isActive) {
+    stopAutoMode();
+  } else {
+    setPrimaryTabId(null);
+  }
+}
+
+// タブ関連のイベントリスナーを設定してアクティブチャンネルキャッシュおよびプライマリタブを更新
 if (typeof chrome !== 'undefined' && chrome.tabs) {
   if (chrome.tabs.onActivated) {
     chrome.tabs.onActivated.addListener(() => {
@@ -131,7 +218,8 @@ if (typeof chrome !== 'undefined' && chrome.tabs) {
     });
   }
   if (chrome.tabs.onRemoved) {
-    chrome.tabs.onRemoved.addListener(() => {
+    chrome.tabs.onRemoved.addListener((tabId) => {
+      handlePrimaryTabLost(tabId);
       refreshActiveTwitchChannelCache();
     });
   }
@@ -198,7 +286,7 @@ function startWatchTimer() {
       const key = activeChannel.toLowerCase();
       watchTimeMap[key] = (watchTimeMap[key] || 0) + 1;
 
-      const targetStreamer = liveStreamers.find((s) => s.user_login.toLowerCase() === key);
+      const targetStreamer = liveStreamersByLogin.get(key);
       if (targetStreamer) {
         targetStreamer.watch_time_seconds = watchTimeMap[key];
         broadcastState();
@@ -256,7 +344,10 @@ let domScrapeRetryTimer: ReturnType<typeof setTimeout> | null = null;
 // Request active Twitch tabs to scrape live streamers from DOM with optional retry
 function requestDomScrapeFromTabs(retryCount = 0) {
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
-    tabs.forEach((tab) => {
+    if (!tabs) return;
+    const hasPrimary = primaryTabId !== null && tabs.some((t) => t.id === primaryTabId);
+    const targetTabs = hasPrimary ? tabs.filter((t) => t.id === primaryTabId) : tabs;
+    targetTabs.forEach((tab) => {
       if (tab.id) {
         chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE_LIVE_STREAMERS_REQUEST' }).catch(() => {});
       }
@@ -291,6 +382,17 @@ async function fetchFollowedLiveChannels(skipEvaluate = false): Promise<StreamIn
   }
   lastGqlFetchTime = now;
 
+  // 未ログイン状態（auth-token Cookie 不在）の場合は GQL や DOM スクレイピングを行わず待機状態へ遷移
+  const authToken = await getTwitchAuthToken();
+  if (!authToken) {
+    console.log('[gnb-twipper] User is not logged in (auth-token missing). Skipping GQL and DOM scrape.');
+    updateLiveStreamers(attachWatchTimeAndCleanup([]));
+    if (!skipEvaluate) {
+      evaluateAutoState();
+    }
+    return liveStreamers;
+  }
+
   // 1. Client-ID が白紙 (未検出) の場合は GQL を呼んで無駄な401を起こさず、DOMスクレイピングを使用
   if (!dynamicClientId) {
     console.log('[gnb-twipper] [GQL Init] Client-ID is empty (null). Waiting for Twitch tab packet to capture Client-ID. Using DOM scrape fallback.');
@@ -306,7 +408,6 @@ async function fetchFollowedLiveChannels(skipEvaluate = false): Promise<StreamIn
   }
 
   try {
-    const authToken = await getTwitchAuthToken();
     const deviceId = await getTwitchDeviceId();
     const response = await sendFollowedLiveGqlRequest(dynamicClientId, authToken, deviceId);
 
@@ -343,7 +444,7 @@ async function fetchFollowedLiveChannels(skipEvaluate = false): Promise<StreamIn
 
     console.log('[gnb-twipper] GQL Parsed Live Streamers count:', fetchedStreamers.length, fetchedStreamers);
 
-    liveStreamers = attachWatchTimeAndCleanup(fetchedStreamers);
+    updateLiveStreamers(attachWatchTimeAndCleanup(fetchedStreamers));
     resetRefreshAlarm();
     if (!skipEvaluate) {
       evaluateAutoState();
@@ -394,10 +495,26 @@ function stopTimer() {
 }
 
 // Start Auto Rotation Mode
-function startAutoMode(initialChannel?: string) {
+function startAutoMode(initialChannel?: string, targetTabId?: number) {
   userManuallyStopped = false;
   markInitialAutoStarted();
   autoState.isActive = true;
+
+  if (typeof targetTabId === 'number') {
+    setPrimaryTabId(targetTabId);
+    refreshActiveTwitchChannelCache();
+  } else if (primaryTabId === null && typeof chrome !== 'undefined' && chrome.tabs?.query) {
+    chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
+      if (primaryTabId === null && autoState.isActive) {
+        const selected = selectPrimaryTabFromList(tabs);
+        if (selected?.id !== undefined) {
+          setPrimaryTabId(selected.id);
+          refreshActiveTwitchChannelCache();
+          broadcastState();
+        }
+      }
+    });
+  }
 
   if (initialChannel) {
     autoState.currentChannel = initialChannel;
@@ -410,7 +527,7 @@ function startAutoMode(initialChannel?: string) {
     // 現在のチャンネルが候補にいなければ1人目をセット
     if (!autoState.currentChannel || !candidates.some((s) => s.user_login.toLowerCase() === autoState.currentChannel.toLowerCase())) {
       autoState.currentChannel = candidates[0].user_login;
-      navigateToChannel(autoState.currentChannel);
+      navigateToChannel(autoState.currentChannel, targetTabId);
     }
     startTimer();
   } else if (candidates.length === 1) {
@@ -418,7 +535,7 @@ function startAutoMode(initialChannel?: string) {
     const singleStreamer = candidates[0].user_login;
     if (autoState.currentChannel.toLowerCase() !== singleStreamer.toLowerCase()) {
       autoState.currentChannel = singleStreamer;
-      navigateToChannel(singleStreamer);
+      navigateToChannel(singleStreamer, targetTabId);
     }
     stopTimer();
   } else {
@@ -435,6 +552,7 @@ function stopAutoMode() {
   markInitialAutoStarted();
   autoState.isActive = false;
   autoState.isStandby = false;
+  setPrimaryTabId(null);
   stopTimer();
   broadcastState();
 }
@@ -556,15 +674,24 @@ async function rotateToNextChannel() {
 }
 
 // Navigate Twitch tab (履歴を増やさずに上書き遷移)
-function navigateToChannel(channel: string) {
+function navigateToChannel(channel: string, targetTabId?: number) {
   const safeChannel = channel.trim().replace(/[^a-zA-Z0-9_]/g, '');
   if (!safeChannel) return;
 
   chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
-    if (tabs.length > 0) {
-      // アクティブなTwitchタブを優先、なければ先頭のタブ
-      const targetTab = tabs.find((t) => t.active) || tabs[0];
+    if (tabs && tabs.length > 0) {
+      // 優先順位: 指定タブ > プライマリタブ > アクティブタブ > 先頭タブ
+      const targetTab =
+        (typeof targetTabId === 'number' ? tabs.find((t) => t.id === targetTabId) : undefined) ||
+        (primaryTabId !== null ? tabs.find((t) => t.id === primaryTabId) : undefined) ||
+        tabs.find((t) => t.active) ||
+        tabs[0];
       if (!targetTab || !targetTab.id) return;
+
+      if (autoState.isActive && primaryTabId === null) {
+        setPrimaryTabId(targetTab.id);
+        broadcastState();
+      }
 
       const tabId = targetTab.id;
       const targetChannelLower = safeChannel.toLowerCase();
@@ -604,18 +731,19 @@ function broadcastState() {
     cachedTwitchTabIds.forEach((tabId) => {
       chrome.tabs.sendMessage(tabId, {
         type: 'AUTO_STATE_UPDATE',
-        autoState,
+        autoState: getAutoStateForTab(tabId),
         settings,
         liveStreamers: targetStreamers,
       }).catch(() => {});
     });
   } else {
     chrome.tabs.query({ url: 'https://www.twitch.tv/*' }, (tabs) => {
+      if (!tabs) return;
       tabs.forEach((tab) => {
         if (tab.id) {
           chrome.tabs.sendMessage(tab.id, {
             type: 'AUTO_STATE_UPDATE',
-            autoState,
+            autoState: getAutoStateForTab(tab.id),
             settings,
             liveStreamers: targetStreamers,
           }).catch(() => {});
@@ -626,17 +754,22 @@ function broadcastState() {
 
   chrome.runtime.sendMessage({
     type: 'AUTO_STATE_UPDATE',
-    autoState,
+    autoState: getAutoStateForTab(undefined),
     settings,
     liveStreamers: targetStreamers,
   }).catch(() => {});
 }
 
 // Message listener
-chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
   // Ignore self-broadcast messages
   if (message.type === 'AUTO_STATE_UPDATE') {
     return false;
+  }
+
+  const senderTabId = sender?.tab?.id;
+  if (typeof senderTabId === 'number' && !cachedTwitchTabIds.has(senderTabId) && isTwitchTabUrl(sender?.tab?.url)) {
+    cachedTwitchTabIds.add(senderTabId);
   }
 
   switch (message.type) {
@@ -644,7 +777,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
       if (liveStreamers.length === 0) {
         requestDomScrapeFromTabs();
       }
-      sendResponse({ settings, autoState, liveStreamers: getRotationTargetStreamers() });
+      sendResponse({ settings, autoState: getAutoStateForTab(senderTabId), liveStreamers: getRotationTargetStreamers() });
       break;
     }
 
@@ -686,24 +819,46 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'START_AUTO_MODE': {
-      startAutoMode();
-      sendResponse({ success: true, autoState });
+      startAutoMode(undefined, senderTabId);
+      sendResponse({ success: true, autoState: getAutoStateForTab(senderTabId) });
       break;
     }
 
     case 'STOP_AUTO_MODE': {
       stopAutoMode();
-      sendResponse({ success: true, autoState });
+      sendResponse({ success: true, autoState: getAutoStateForTab(senderTabId) });
+      break;
+    }
+
+    case 'SWITCH_PRIMARY_TAB': {
+      if (typeof senderTabId === 'number') {
+        setPrimaryTabId(senderTabId);
+        cachedTwitchTabIds.add(senderTabId);
+        if (sender?.tab?.url) {
+          const ch = extractChannelFromUrl(sender.tab.url);
+          if (ch) {
+            autoState.currentChannel = ch;
+          }
+        }
+        refreshActiveTwitchChannelCache();
+        broadcastState();
+      }
+      sendResponse({ success: true, autoState: getAutoStateForTab(senderTabId) });
       break;
     }
 
     case 'SKIP_NEXT': {
       rotateToNextChannel();
-      sendResponse({ success: true, autoState });
+      sendResponse({ success: true, autoState: getAutoStateForTab(senderTabId) });
       break;
     }
 
     case 'DETECTED_SUB_ONLY_LOCK': {
+      // 非プライマリタブからの検知は無視して他タブへの干渉を防止
+      if (primaryTabId !== null && senderTabId !== undefined && senderTabId !== primaryTabId) {
+        sendResponse({ success: true });
+        break;
+      }
       console.log('[gnb-twipper] Sub-only stream lock detected on channel:', message.channel);
       if (message.channel) {
         const targetLogin = message.channel.toLowerCase();
@@ -723,11 +878,16 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     }
 
     case 'DETECTED_OFFLINE': {
+      // 非プライマリタブからの検知は無視して他タブへの干渉を防止
+      if (primaryTabId !== null && senderTabId !== undefined && senderTabId !== primaryTabId) {
+        sendResponse({ success: true });
+        break;
+      }
       console.log('[gnb-twipper] Offline stream detected on channel:', message.channel);
       if (message.channel) {
         const targetLogin = message.channel.toLowerCase();
         const prevCount = liveStreamers.length;
-        liveStreamers = liveStreamers.filter((s) => s.user_login.toLowerCase() !== targetLogin);
+        updateLiveStreamers(liveStreamers.filter((s) => s.user_login.toLowerCase() !== targetLogin));
         delete watchTimeMap[targetLogin];
         if (liveStreamers.length !== prevCount) {
           console.log(`[gnb-twipper] Removed offline streamer @${targetLogin} from liveStreamers (Remaining: ${liveStreamers.length})`);
@@ -745,8 +905,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
     case 'SELECT_STREAMER': {
       const safeChannel = message.channel.trim().replace(/[^a-zA-Z0-9_]/g, '');
       if (safeChannel) {
+        if (autoState.isActive && typeof senderTabId === 'number') {
+          setPrimaryTabId(senderTabId);
+        }
         autoState.currentChannel = safeChannel;
-        navigateToChannel(safeChannel);
+        navigateToChannel(safeChannel, senderTabId);
         if (autoState.isActive) {
           const validMinutes = normalizeRotationMinutes(settings.rotationTimeMinutes);
           autoState.totalDurationSeconds = validMinutes * 60;
@@ -754,18 +917,18 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         }
         broadcastState();
       }
-      sendResponse({ success: true, autoState });
+      sendResponse({ success: true, autoState: getAutoStateForTab(senderTabId) });
       break;
     }
 
     case 'GET_AUTO_STATE': {
       if (liveStreamers.length === 0) {
         fetchFollowedLiveChannels().then(() => {
-          sendResponse({ autoState, settings, liveStreamers: getRotationTargetStreamers() });
+          sendResponse({ autoState: getAutoStateForTab(senderTabId), settings, liveStreamers: getRotationTargetStreamers() });
         });
         return true; // Keep message channel open for async response
       } else {
-        sendResponse({ autoState, settings, liveStreamers: getRotationTargetStreamers() });
+        sendResponse({ autoState: getAutoStateForTab(senderTabId), settings, liveStreamers: getRotationTargetStreamers() });
         break;
       }
     }
@@ -783,7 +946,10 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
         console.log('[gnb-twipper] Received streamers from DOM:', message.streamers.length);
         const domStreamers = message.streamers;
         checkSubOnlyAuthViaGql(domStreamers).then((subOnlyMap) => {
-          const existingMap = new Map(liveStreamers.map((old) => [old.user_login.toLowerCase(), old]));
+          const existingMap = new Map<string, StreamInfo>();
+          for (const old of liveStreamers) {
+            existingMap.set(old.user_login.toLowerCase(), old);
+          }
 
           const updatedStreamers: StreamInfo[] = domStreamers.map((s) => {
             const lowerLogin = s.user_login.toLowerCase();
@@ -795,7 +961,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
               is_sub_only: isSubOnly,
             };
           });
-          liveStreamers = attachWatchTimeAndCleanup(updatedStreamers);
+          updateLiveStreamers(attachWatchTimeAndCleanup(updatedStreamers));
           resetRefreshAlarm();
           evaluateAutoState();
           broadcastState();
@@ -810,7 +976,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendRe
             isInitialAutoStarted().then((alreadyStarted) => {
               if (!alreadyStarted && !autoState.isActive && !userManuallyStopped) {
                 console.log('[gnb-twipper] Streamers successfully retrieved from DOM. Initial auto-start triggered.');
-                startAutoMode();
+                startAutoMode(undefined, senderTabId);
               }
             });
           }
@@ -856,16 +1022,22 @@ function isTwitchTabUrl(url?: string): boolean {
 }
 
 // Auto-start auto mode when Twitch tab is opened/loaded if autoStartOnLogin is enabled (initial load only)
-chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' || changeInfo.url) {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  const isTwitch = isTwitchTabUrl(tab.url);
+  // プライマリタブが Twitch 以外のドメインへ遷移した場合はオートモードを安全停止
+  if (tab.url && !isTwitch) {
+    handlePrimaryTabLost(tabId);
+  }
+  // 他の無関係なタブ更新での不要な chrome.tabs.query ポーリングを防止
+  if (isTwitch && (changeInfo.status === 'complete' || changeInfo.url)) {
     refreshActiveTwitchChannelCache();
   }
-  if (changeInfo.status === 'complete' && isTwitchTabUrl(tab.url)) {
+  if (changeInfo.status === 'complete' && isTwitch) {
     const alreadyStarted = await isInitialAutoStarted();
     if (settings.autoStartOnLogin && !autoState.isActive && !alreadyStarted) {
       console.log('[gnb-twipper] Initial Twitch tab loaded/updated. Auto-starting Auto Mode via autoStartOnLogin.');
       await markInitialAutoStarted();
-      startAutoMode();
+      startAutoMode(undefined, tabId);
     }
   }
 });

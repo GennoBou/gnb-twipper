@@ -30,11 +30,14 @@ export function getWatchTimeMap(): Record<string, number> {
  * 配信終了した（一覧にない）チャンネルの視聴時間をマップから削除・クリーンアップする
  */
 export function attachWatchTimeAndCleanup(fetched: StreamInfo[]): StreamInfo[] {
-  const currentLiveLogins = new Set(fetched.map((s) => s.user_login.toLowerCase()));
+  const currentLiveLogins = new Set<string>();
+  for (const s of fetched) {
+    currentLiveLogins.add(s.user_login.toLowerCase());
+  }
 
-  // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット）
-  for (const key of Object.keys(watchTimeMap)) {
-    if (!currentLiveLogins.has(key)) {
+  // 配信終了したチャンネルの視聴時間をクリア（0秒にリセット、配列アロケーションを回避）
+  for (const key in watchTimeMap) {
+    if (Object.prototype.hasOwnProperty.call(watchTimeMap, key) && !currentLiveLogins.has(key)) {
       delete watchTimeMap[key];
     }
   }

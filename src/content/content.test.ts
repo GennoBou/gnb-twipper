@@ -209,5 +209,31 @@ describe('src/content/content.ts DOM Parsing Helpers', () => {
 
       expect(parseStreamerFromLink(a)).toBeNull();
     });
+
+    it('英語表記 "Offline" を含む場合もオフライン配信者として null を返しスキップする', () => {
+      const a = createAnchor('/english_offline_user');
+      a.textContent = 'StreamerName Offline';
+
+      expect(parseStreamerFromLink(a)).toBeNull();
+    });
+
+    it('オフラインクラス（tw-avatar--offline または side-nav-card__avatar--offline）を持つ要素が存在する場合もスキップする', () => {
+      const a1 = createAnchor('/avatar_offline_1');
+      const avatar1 = document.createElement('div');
+      avatar1.className = 'side-nav-card__avatar--offline';
+      a1.appendChild(avatar1);
+      expect(parseStreamerFromLink(a1)).toBeNull();
+
+      const a2 = createAnchor('/avatar_offline_2');
+      const avatar2 = document.createElement('div');
+      avatar2.className = 'tw-avatar--offline';
+      a2.appendChild(avatar2);
+      expect(parseStreamerFromLink(a2)).toBeNull();
+    });
+
+    it('予約ディレクトリなど不正なパスの場合は即時 null を返す', () => {
+      const a = createAnchor('/directory/game/Apex');
+      expect(parseStreamerFromLink(a)).toBeNull();
+    });
   });
 });

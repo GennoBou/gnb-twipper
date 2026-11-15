@@ -3,6 +3,8 @@ import type { ExtensionMessage } from '../types';
 
 describe('background.ts chrome.runtime.onMessage listener integration', () => {
   let messageListener: (message: ExtensionMessage, sender: any, sendResponse: (res: any) => void) => boolean | void;
+  let tabRemovedListener: ((tabId: number) => void) | undefined;
+  let tabUpdatedListener: ((tabId: number, changeInfo: any, tab: any) => void) | undefined;
 
   const mockChrome = {
     storage: {
@@ -36,7 +38,14 @@ describe('background.ts chrome.runtime.onMessage listener integration', () => {
       update: vi.fn(),
       create: vi.fn(),
       onUpdated: {
-        addListener: vi.fn(),
+        addListener: vi.fn((listener) => {
+          tabUpdatedListener = listener;
+        }),
+      },
+      onRemoved: {
+        addListener: vi.fn((listener) => {
+          tabRemovedListener = listener;
+        }),
       },
     },
     cookies: {
@@ -171,5 +180,120 @@ describe('background.ts chrome.runtime.onMessage listener integration', () => {
     messageListener({ type: 'UNKNOWN_ACTION' } as any, {}, sendResponse);
 
     expect(sendResponse).toHaveBeenCalledWith({ success: false });
+  });
+
+  describe('マルチタブ制御（オート稼働時ロック方式）', () => {
+    afterEach(() => {
+      // 各テスト後にオートモードとプライマリタブロックを解除
+      messageListener({ type: 'STOP_AUTO_MODE' }, {}, vi.fn());
+    });
+
+    it('START_AUTO_MODE をタブ101から送信すると、別タブ202では isLockedByOtherTab が true になる', () => {
+      const startRes = vi.fn();
+      messageListener({ type: 'START_AUTO_MODE' }, { tab: { id: 101 } }, startRes);
+      expect(startRes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          autoState: expect.objectContaining({ isActive: true, isLockedByOtherTab: false }),
+        })
+      );
+
+      const tab101SettingsRes = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 101 } }, tab101SettingsRes);
+      expect(tab101SettingsRes.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(false);
+
+      const tab202SettingsRes = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 202 } }, tab202SettingsRes);
+      expect(tab202SettingsRes.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(true);
+
+      const tab202StateRes = vi.fn();
+      messageListener({ type: 'GET_AUTO_STATE' }, { tab: { id: 202 } }, tab202StateRes);
+      // liveStreamersが空の場合は非同期のため、呼ばれていれば即確認、または waitFor で検証
+      if (tab202StateRes.mock.calls.length > 0) {
+        expect(tab202StateRes.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(true);
+      }
+    });
+
+    it('SWITCH_PRIMARY_TAB をタブ202から送信すると、操作権がタブ202に切り替わる', () => {
+      messageListener({ type: 'START_AUTO_MODE' }, { tab: { id: 101 } }, vi.fn());
+
+      const switchRes = vi.fn();
+      messageListener(
+        { type: 'SWITCH_PRIMARY_TAB' },
+        { tab: { id: 202, url: 'https://www.twitch.tv/new_channel' } },
+        switchRes
+      );
+
+      expect(switchRes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          autoState: expect.objectContaining({
+            isActive: true,
+            isLockedByOtherTab: false,
+            currentChannel: 'new_channel',
+          }),
+        })
+      );
+
+      const tab101Res = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 101 } }, tab101Res);
+      expect(tab101Res.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(true);
+
+      const tab202Res = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 202 } }, tab202Res);
+      expect(tab202Res.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(false);
+    });
+
+    it('非プライマリタブからの DETECTED_OFFLINE / DETECTED_SUB_ONLY_LOCK では巡回スキップが発火しない', async () => {
+      // skipSubOnlyStreams を有効にしておく
+      const saveRes = vi.fn();
+      messageListener(
+        { type: 'SAVE_SETTINGS', settings: { skipSubOnlyStreams: true } },
+        {},
+        saveRes
+      );
+      await vi.waitFor(() => {
+        expect(saveRes).toHaveBeenCalled();
+      });
+      await Promise.resolve();
+
+      messageListener({ type: 'START_AUTO_MODE' }, { tab: { id: 101 } }, vi.fn());
+      vi.clearAllMocks();
+
+      const offlineRes = vi.fn();
+      messageListener({ type: 'DETECTED_OFFLINE', channel: 'some_channel' }, { tab: { id: 202 } }, offlineRes);
+      expect(offlineRes).toHaveBeenCalledWith({ success: true });
+      expect(mockChrome.cookies.get).not.toHaveBeenCalled();
+      expect(mockChrome.tabs.query).not.toHaveBeenCalled();
+
+      const subOnlyRes = vi.fn();
+      messageListener({ type: 'DETECTED_SUB_ONLY_LOCK', channel: 'some_channel' }, { tab: { id: 202 } }, subOnlyRes);
+      expect(subOnlyRes).toHaveBeenCalledWith({ success: true });
+      expect(mockChrome.cookies.get).not.toHaveBeenCalled();
+      expect(mockChrome.tabs.query).not.toHaveBeenCalled();
+    });
+
+    it('プライマリタブが閉じられるか Twitch 外へ遷移すると、オートモードが安全に自動停止する', async () => {
+      messageListener({ type: 'START_AUTO_MODE' }, { tab: { id: 101 } }, vi.fn());
+      expect(tabRemovedListener).toBeDefined();
+      tabRemovedListener?.(202); // 非プライマリタブの閉鎖では停止しない
+      const stillActiveRes = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 101 } }, stillActiveRes);
+      expect(stillActiveRes.mock.calls[0][0].autoState.isActive).toBe(true);
+
+      tabRemovedListener?.(101); // プライマリタブの閉鎖で自動停止
+      const stoppedRes = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 202 } }, stoppedRes);
+      expect(stoppedRes.mock.calls[0][0].autoState.isActive).toBe(false);
+      expect(stoppedRes.mock.calls[0][0].autoState.isLockedByOtherTab).toBe(false);
+
+      // Twitch 外への遷移でも自動停止
+      messageListener({ type: 'START_AUTO_MODE' }, { tab: { id: 303 } }, vi.fn());
+      expect(tabUpdatedListener).toBeDefined();
+      await tabUpdatedListener?.(303, { status: 'complete' }, { id: 303, url: 'https://example.com/' });
+      const stoppedAfterLeaveRes = vi.fn();
+      messageListener({ type: 'GET_SETTINGS' }, { tab: { id: 202 } }, stoppedAfterLeaveRes);
+      expect(stoppedAfterLeaveRes.mock.calls[0][0].autoState.isActive).toBe(false);
+    });
   });
 });

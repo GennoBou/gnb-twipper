@@ -12,6 +12,7 @@ export const NAV_SELECTORS = {
   TOP_NAV: 'nav[data-a-target="top-nav"]',
   NAV_FALLBACK: 'nav',
   TRIGGER_ROOT_ID: 'gnb-twipper-trigger-root',
+  LOGIN_BUTTON: '[data-a-target="login-button"]',
 } as const;
 
 /**
@@ -41,7 +42,7 @@ export const FOLLOWED_SECTION_SELECTORS = {
     '[data-test-selector="followed-channels"]',
   ],
   EXCLUDED_SECTION_QUERY:
-    '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [data-a-target="side-nav-section-recommended-channels"]',
+    '[aria-label*="ライブ配信中のチャンネル"], [aria-label*="おすすめ"], [aria-label*="Recommended"], [aria-label*="視聴者が視聴"], [aria-label*="Also Watch"], [data-a-target="side-nav-section-recommended-channels"]',
 } as const;
 
 /**

@@ -15,11 +15,12 @@ export function getRotationTargetStreamers(
   if (!settings.excludedChannels || settings.excludedChannels.length === 0) {
     return liveStreamers;
   }
-  const excludedLogins = new Set(
-    settings.excludedChannels
-      .filter((item) => item.enabled)
-      .map((item) => item.user_login.toLowerCase())
-  );
+  const excludedLogins = new Set<string>();
+  for (const item of settings.excludedChannels) {
+    if (item.enabled) {
+      excludedLogins.add(item.user_login.toLowerCase());
+    }
+  }
   return liveStreamers.filter(
     (streamer) => !excludedLogins.has(streamer.user_login.toLowerCase())
   );

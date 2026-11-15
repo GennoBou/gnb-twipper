@@ -53,7 +53,7 @@
   "followingBadge": "已追隨",
   "notFollowingBadge": "未追隨",
   "noExcludedChannels": "尚未登錄任何排除頻道",
-  "appTitle": "gnb-twipper 設定",
+  "appTitle": "GNB Twipper 設定",
   "saveSettings": "儲存設定",
   "saved": "已儲存",
   "saving": "儲存中...",
@@ -92,5 +92,8 @@
   "allowSubOnlyFreePreviewLabel": "在免費試看期間繼續觀看",
   "allowSubOnlyFreePreviewDesc": "在免費試看期間繼續觀看，當試看結束且直播鎖定時自動跳過。",
   "standbySingle": "待機中 (僅1位實況主)",
-  "standbyNone": "待機中 (無直播頻道)"
+  "standbyNone": "待機中 (無直播頻道)",
+  "gnbLockedOtherTabBtn": "GNB [其他分頁自動輪播中] ▾",
+  "lockedByOtherTabNotice": "Twipper 正在其他分頁中運作",
+  "switchControlToThisTab": "將控制權切換至此分頁"
 }

@@ -53,7 +53,7 @@
   "followingBadge": "Seguindo",
   "notFollowingBadge": "Não seguido",
   "noExcludedChannels": "Nenhum canal excluído cadastrado",
-  "appTitle": "Configurações do gnb-twipper",
+  "appTitle": "Configurações do GNB Twipper",
   "saveSettings": "Salvar configurações",
   "saved": "Salvo",
   "saving": "Salvando...",
@@ -92,5 +92,8 @@
   "allowSubOnlyFreePreviewLabel": "Assistir durante o período de prévia gratuita",
   "allowSubOnlyFreePreviewDesc": "Continua assistindo durante a prévia gratuita e pula assim que o período terminar e o stream for bloqueado.",
   "standbySingle": "Em espera (1 streamer)",
-  "standbyNone": "Em espera (Nenhum ao vivo)"
+  "standbyNone": "Em espera (Nenhum ao vivo)",
+  "gnbLockedOtherTabBtn": "GNB [Auto em outra guia] ▾",
+  "lockedByOtherTabNotice": "O Twipper está ativo em outra guia",
+  "switchControlToThisTab": "Alternar controle para esta guia"
 }

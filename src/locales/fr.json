@@ -53,7 +53,7 @@
   "followingBadge": "Suivi",
   "notFollowingBadge": "Non suivi",
   "noExcludedChannels": "Aucune chaîne exclue enregistrée",
-  "appTitle": "Paramètres de gnb-twipper",
+  "appTitle": "Paramètres de GNB Twipper",
   "saveSettings": "Enregistrer les paramètres",
   "saved": "Enregistré",
   "saving": "Enregistrement...",
@@ -92,5 +92,8 @@
   "allowSubOnlyFreePreviewLabel": "Regarder pendant la période d'aperçu gratuit",
   "allowSubOnlyFreePreviewDesc": "Continue de regarder pendant l'aperçu gratuit, puis passe automatiquement lorsque l'aperçu se termine et que le stream est verrouillé.",
   "standbySingle": "En attente (1 streamer)",
-  "standbyNone": "En attente (Aucun direct)"
+  "standbyNone": "En attente (Aucun direct)",
+  "gnbLockedOtherTabBtn": "GNB [Auto dans un autre onglet] ▾",
+  "lockedByOtherTabNotice": "Twipper est actif dans un autre onglet",
+  "switchControlToThisTab": "Basculer le contrôle sur cet onglet"
 }

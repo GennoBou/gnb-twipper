@@ -127,4 +127,56 @@ describe('src/content/GnbNavTrigger.svelte Component Test', () => {
       expect(onSkip).toHaveBeenCalledTimes(1);
     }
   });
+
+  it('他タブでAuto動作中 (isLockedByOtherTab: true) の場合、グレーボタンと操作切り替えUIが表示され onSwitchToThisTab が動作する', async () => {
+    const onSwitchToThisTab = vi.fn();
+
+    component = mount(GnbNavTrigger, {
+      target,
+      props: {
+        autoState: {
+          isActive: true,
+          isLockedByOtherTab: true,
+          timeRemainingSeconds: 120,
+          totalDurationSeconds: 180,
+          currentChannel: 'other_tab_channel',
+        },
+        settings: {
+          rotationTimeMinutes: 3,
+          autoStartOnLogin: true,
+          language: 'ja',
+          customCss: '',
+          customJs: '',
+          customCssEnabled: false,
+          customJsEnabled: false,
+        },
+        liveStreamers: [],
+        onSwitchToThisTab,
+      },
+    });
+
+    await vi.waitFor(() => {
+      const triggerBtn = target.querySelector('.gnb-trigger-btn');
+      expect(triggerBtn?.textContent).toContain('GNB [他タブでAuto中]');
+      expect(triggerBtn?.classList.contains('locked-other-tab')).toBe(true);
+    });
+
+    // Skip ボタンとタイマーは非表示であること
+    expect(target.querySelector('.gnb-quick-skip-btn')).toBeNull();
+    expect(target.querySelector('.gnb-timer-text')).toBeNull();
+
+    // トリガーボタンをクリックしてドロップダウンを開く
+    const triggerBtn = target.querySelector('.gnb-trigger-btn') as HTMLButtonElement;
+    triggerBtn.click();
+
+    await vi.waitFor(() => {
+      expect(target.textContent).toContain('Twipperは他のタブで動作中です');
+      const switchBtn = target.querySelector('.btn-switch-tab') as HTMLButtonElement;
+      expect(switchBtn).not.toBeNull();
+      expect(switchBtn.textContent).toContain('このタブに操作を切り替える');
+      switchBtn.click();
+    });
+
+    expect(onSwitchToThisTab).toHaveBeenCalledTimes(1);
+  });
 });

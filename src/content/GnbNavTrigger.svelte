@@ -15,7 +15,7 @@
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   }
 
-  let props = $props<{
+  let props: {
     autoState?: AutoState;
     settings?: AppSettings;
     liveStreamers?: StreamInfo[];
@@ -23,7 +23,8 @@
     onSkip?: () => void;
     onSelectChannel?: (channel: string) => void;
     onOpenOptions?: () => void;
-  }>();
+    onSwitchToThisTab?: () => void;
+  } = $props();
 
   let autoState = $state<AutoState>({
     isActive: false,
@@ -135,12 +136,16 @@
 
 <div class="gnb-trigger-wrapper">
   <!-- Trigger Button inside Twitch Header -->
-  <button class="gnb-trigger-btn {autoState.isActive ? 'active' : ''}" onclick={(e) => toggleMenu(e)} title="gnb-twipper 巡回コントロール">
-    <span class="btn-text">GNB ▾</span>
+  <button
+    class="gnb-trigger-btn {autoState.isLockedByOtherTab ? 'locked-other-tab' : autoState.isActive ? 'active' : ''}"
+    onclick={(e) => toggleMenu(e)}
+    title={autoState.isLockedByOtherTab ? i18n.t("lockedByOtherTabNotice") : "GNB Twipper 巡回コントロール"}
+  >
+    <span class="btn-text">{autoState.isLockedByOtherTab ? i18n.t("gnbLockedOtherTabBtn") : "GNB ▾"}</span>
   </button>
 
-  <!-- Quick Skip Button & Timer Badge (AUTOモード時のみ表示) -->
-  {#if autoState.isActive}
+  <!-- Quick Skip Button & Timer Badge (自タブでAUTOモード時のみ表示) -->
+  {#if autoState.isActive && !autoState.isLockedByOtherTab}
     {#if !autoState.isStandby}
       <button class="gnb-quick-skip-btn" onclick={() => props.onSkip?.()} title={i18n.t("titleSkip")}>
         <span>Skip</span>
@@ -177,7 +182,7 @@
             <path fill="none" stroke="#882dfd" stroke-width="33.6" d="m 217.46,326.24 a 88.1,90.4 0 0 1 -81.4,-55.8 88.1,90.4 0 0 1 19.1,-98.5 88.1,90.4 0 0 1 96,-19.6 88.1,90.4 0 0 1 54.4,83.5" />
             <path fill="#882dfd" d="m 205.07,254.57 -0.31,128.34 66.96,-51.84 0.44,51.67 73.83,-66.7 -74.41,-62.44 -0.04,52.18 z" />
           </svg>
-          <span class="logo-text">gnb-twipper</span>
+          <span class="logo-text">GNB Twipper</span>
         </div>
         <button
           class="btn-icon"
@@ -192,65 +197,80 @@
         </button>
       </div>
 
-      <!-- Controls Section -->
-      <div class="menu-controls">
-        <button class="btn-action {autoState.isActive ? 'btn-stop' : 'btn-start'}" onclick={() => props.onToggleAuto?.()}>
-          {#if autoState.isActive}
-            <Square size={14} />
-            <span>{i18n.t("autoStop")}</span>
-          {:else}
-            <Play size={14} />
-            <span>{i18n.t("autoStart")}</span>
-          {/if}
-        </button>
-
-        <button class="btn-action btn-skip" onclick={() => props.onSkip?.()} title={i18n.t("titleSkip")}>
-          <SkipForward size={14} />
-          <span>{i18n.t("popupSkip")}</span>
-        </button>
-      </div>
-
-      <!-- Accordion Header for Streamers List -->
-      <button class="streamers-header-accordion" onclick={toggleStreamersAccordion} title="ユーザーリストの開閉">
-        <div class="accordion-title-group">
-          <span class="icon-live"><Radio size={13} /></span>
-          <span>{i18n.t("targetCount", { count: liveStreamers.length })}</span>
+      {#if autoState.isLockedByOtherTab}
+        <div class="locked-other-tab-panel">
+          <p class="locked-notice-text">{i18n.t("lockedByOtherTabNotice")}</p>
+          <button
+            class="btn-action btn-switch-tab"
+            onclick={() => {
+              props.onSwitchToThisTab?.();
+              closeMenu();
+            }}
+          >
+            {i18n.t("switchControlToThisTab")}
+          </button>
         </div>
-        <span class="chevron-icon">
-          {#if isStreamersOpen}
-            <ChevronDown size={14} />
-          {:else}
-            <ChevronRight size={14} />
-          {/if}
-        </span>
-      </button>
+      {:else}
+        <!-- Controls Section -->
+        <div class="menu-controls">
+          <button class="btn-action {autoState.isActive ? 'btn-stop' : 'btn-start'}" onclick={() => props.onToggleAuto?.()}>
+            {#if autoState.isActive}
+              <Square size={14} />
+              <span>{i18n.t("autoStop")}</span>
+            {:else}
+              <Play size={14} />
+              <span>{i18n.t("autoStart")}</span>
+            {/if}
+          </button>
 
-      {#if isStreamersOpen}
-        <div class="streamers-list">
-          {#if liveStreamers.length === 0}
-            <div class="empty-text">{i18n.t("noLiveChannels")}</div>
-          {:else}
-            {#each liveStreamers as streamer}
-              <button class="streamer-row {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}" onclick={() => handleSelect(streamer.user_login)}>
-                {#if streamer.profile_image_url}
-                  <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
-                {/if}
-                <div class="streamer-details">
-                  <div class="streamer-name-row">
-                    <span class="streamer-name">{streamer.user_name}</span>
-                    {#if streamer.is_sub_only}
-                      <span class="sub-only-badge" title="サブスクライバー限定配信"><Lock size={10} /> 限定</span>
-                    {/if}
+          <button class="btn-action btn-skip" onclick={() => props.onSkip?.()} title={i18n.t("titleSkip")}>
+            <SkipForward size={14} />
+            <span>{i18n.t("popupSkip")}</span>
+          </button>
+        </div>
+
+        <!-- Accordion Header for Streamers List -->
+        <button class="streamers-header-accordion" onclick={toggleStreamersAccordion} title="ユーザーリストの開閉">
+          <div class="accordion-title-group">
+            <span class="icon-live"><Radio size={13} /></span>
+            <span>{i18n.t("targetCount", { count: liveStreamers.length })}</span>
+          </div>
+          <span class="chevron-icon">
+            {#if isStreamersOpen}
+              <ChevronDown size={14} />
+            {:else}
+              <ChevronRight size={14} />
+            {/if}
+          </span>
+        </button>
+
+        {#if isStreamersOpen}
+          <div class="streamers-list">
+            {#if liveStreamers.length === 0}
+              <div class="empty-text">{i18n.t("noLiveChannels")}</div>
+            {:else}
+              {#each liveStreamers as streamer}
+                <button class="streamer-row {autoState.currentChannel.toLowerCase() === streamer.user_login.toLowerCase() ? 'active' : ''}" onclick={() => handleSelect(streamer.user_login)}>
+                  {#if streamer.profile_image_url}
+                    <img src={streamer.profile_image_url} alt={streamer.user_name} class="avatar" />
+                  {/if}
+                  <div class="streamer-details">
+                    <div class="streamer-name-row">
+                      <span class="streamer-name">{streamer.user_name}</span>
+                      {#if streamer.is_sub_only}
+                        <span class="sub-only-badge" title="サブスクライバー限定配信"><Lock size={10} /> 限定</span>
+                      {/if}
+                    </div>
+                    <div class="streamer-game">{streamer.game_name || streamer.title || streamer.user_login}</div>
                   </div>
-                  <div class="streamer-game">{streamer.game_name || streamer.title || streamer.user_login}</div>
-                </div>
-                <div class="watch-time-badge" title={i18n.t("watchTimeTooltip")}>
-                  ⏱️ {formatWatchTime(streamer.watch_time_seconds)}
-                </div>
-              </button>
-            {/each}
-          {/if}
-        </div>
+                  <div class="watch-time-badge" title={i18n.t("watchTimeTooltip")}>
+                    ⏱️ {formatWatchTime(streamer.watch_time_seconds)}
+                  </div>
+                </button>
+              {/each}
+            {/if}
+          </div>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -301,6 +321,45 @@
 
   .gnb-trigger-btn.active {
     background: var(--gnb-gradient-active, linear-gradient(135deg, #2563eb, #7c3aed));
+  }
+
+  .gnb-trigger-btn.locked-other-tab {
+    background: #334155;
+    color: #cbd5e1;
+    border: 1px solid #475569;
+    box-shadow: none;
+    font-weight: 700;
+  }
+
+  .gnb-trigger-btn.locked-other-tab:hover {
+    background: #475569;
+    color: #f8fafc;
+    box-shadow: none;
+  }
+
+  .locked-other-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 6px 2px 2px;
+  }
+
+  .locked-notice-text {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--gnb-text-sub, #cbd5e1);
+    text-align: center;
+  }
+
+  .btn-switch-tab {
+    width: 100%;
+    background: #2563eb;
+    color: #ffffff;
+  }
+
+  .btn-switch-tab:hover {
+    background: #1d4ed8;
   }
 
   .live-dot {

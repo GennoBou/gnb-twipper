@@ -201,6 +201,8 @@
   }
 </script>
 
+<svelte:head><title>{i18n.t("appTitle")}</title></svelte:head>
+
 <div class="options-layout">
   <header class="header">
     <div class="logo">

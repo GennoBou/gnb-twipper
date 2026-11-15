@@ -70,6 +70,8 @@ const {
   refreshActiveTwitchChannelCache,
   getCachedActiveTwitchChannel,
   getCachedTwitchTabIds,
+  getPrimaryTabId,
+  setPrimaryTabId,
 } = await import('./background');
 import type { AppSettings, StreamInfo } from '../types';
 
@@ -645,7 +647,7 @@ describe('syncCustomUserScript', () => {
         id: 'gnb-twipper-custom-script',
         matches: ['*://*.twitch.tv/*'],
         js: [{ code: 'console.log("hello")' }],
-        world: 'MAIN',
+        world: 'USER_SCRIPT',
         runAt: 'document_idle',
       },
     ]);
@@ -785,6 +787,23 @@ describe('refreshActiveTwitchChannelCache', () => {
 
     expect(getCachedActiveTwitchChannel()).toBeNull();
     expect(getCachedTwitchTabIds().size).toBe(0);
+  });
+
+  it('primaryTabId が設定されている場合、他タブがアクティブでもプライマリタブのチャンネルが優先される', () => {
+    setPrimaryTabId(1);
+    expect(getPrimaryTabId()).toBe(1);
+
+    mockChrome.tabs.query.mockImplementation((_queryInfo: any, cb: any) => {
+      cb([
+        { id: 1, url: 'https://www.twitch.tv/Primary_Streamer', active: false },
+        { id: 2, url: 'https://www.twitch.tv/Active_Other_Streamer', active: true },
+      ]);
+    });
+
+    refreshActiveTwitchChannelCache();
+
+    expect(getCachedActiveTwitchChannel()).toBe('primary_streamer');
+    setPrimaryTabId(null);
   });
 });
 

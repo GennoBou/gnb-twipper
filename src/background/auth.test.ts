@@ -76,6 +76,46 @@ describe('src/background/auth.ts', () => {
       const token = await getTwitchAuthToken();
       expect(token).toBeNull();
     });
+
+    it('chrome または chrome.cookies が未定義の場合は即時 null を返す', async () => {
+      (globalThis as any).chrome = undefined;
+      expect(await getTwitchAuthToken()).toBeNull();
+
+      (globalThis as any).chrome = {};
+      expect(await getTwitchAuthToken()).toBeNull();
+    });
+
+    it('cookie オブジェクトが存在しても value が空文字列の場合はフォールバックする', async () => {
+      (globalThis as any).chrome = {
+        cookies: {
+          get: vi.fn(({ url }, cb) => {
+            if (url === 'https://www.twitch.tv') {
+              cb({ value: '' }); // 空値
+            } else if (url === 'https://gql.twitch.tv') {
+              cb({ value: 'fallback_from_gql' });
+            } else {
+              cb(null);
+            }
+          }),
+          getAll: vi.fn((_details, cb) => cb([])),
+        },
+      };
+
+      const token = await getTwitchAuthToken();
+      expect(token).toBe('fallback_from_gql');
+    });
+
+    it('cookies.getAll が null/undefined を返した場合も安全に null を返す', async () => {
+      (globalThis as any).chrome = {
+        cookies: {
+          get: vi.fn((_details, cb) => cb(null)),
+          getAll: vi.fn((_details, cb) => cb(null as any)),
+        },
+      };
+
+      const token = await getTwitchAuthToken();
+      expect(token).toBeNull();
+    });
   });
 
   describe('getTwitchDeviceId', () => {
@@ -119,6 +159,45 @@ describe('src/background/auth.ts', () => {
 
       const deviceId = await getTwitchDeviceId();
       expect(deviceId).toBeNull();
+    });
+
+    it('chrome または chrome.cookies が未定義の場合は即時 null を返す', async () => {
+      (globalThis as any).chrome = undefined;
+      expect(await getTwitchDeviceId()).toBeNull();
+
+      (globalThis as any).chrome = {};
+      expect(await getTwitchDeviceId()).toBeNull();
+    });
+
+    it('cookie オブジェクトの value が空文字列の場合は cookies.getAll にフォールバックする', async () => {
+      (globalThis as any).chrome = {
+        cookies: {
+          get: vi.fn((_details, cb) => cb({ value: '' })),
+          getAll: vi.fn((_details, cb) => cb([{ value: 'device_fallback_ok', domain: 'twitch.tv' }])),
+        },
+      };
+
+      const deviceId = await getTwitchDeviceId();
+      expect(deviceId).toBe('device_fallback_ok');
+    });
+
+    it('cookies.getAll で偽装ドメインや domain が undefined の cookie は除外する', async () => {
+      (globalThis as any).chrome = {
+        cookies: {
+          get: vi.fn((_details, cb) => cb(null)),
+          getAll: vi.fn((_details, cb) =>
+            cb([
+              { value: 'bad_1' },
+              { value: 'bad_2', domain: 'evil-twitch.tv' },
+              { value: 'bad_3', domain: 'twitch.tv.attacker.com' },
+              { value: 'valid_device_id', domain: '.twitch.tv' },
+            ])
+          ),
+        },
+      };
+
+      const deviceId = await getTwitchDeviceId();
+      expect(deviceId).toBe('valid_device_id');
     });
   });
 });

@@ -122,31 +122,31 @@ describe("i18n object", () => {
 
   it("t() で各言語の正しい翻訳文字列を取得でき、パラメータ置換が行われること", () => {
     i18n.lang = "ja";
-    expect(i18n.t("appTitle")).toBe("gnb-twipper 設定");
+    expect(i18n.t("appTitle")).toBe("GNB Twipper 設定");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(ライブ 3名)");
 
     i18n.lang = "en";
-    expect(i18n.t("appTitle")).toBe("gnb-twipper Settings");
+    expect(i18n.t("appTitle")).toBe("GNB Twipper Settings");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(Live: 3)");
 
     i18n.lang = "es";
-    expect(i18n.t("appTitle")).toBe("Configuración de gnb-twipper");
+    expect(i18n.t("appTitle")).toBe("Configuración de GNB Twipper");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(En directo: 3)");
 
     i18n.lang = "pt-BR";
-    expect(i18n.t("appTitle")).toBe("Configurações do gnb-twipper");
+    expect(i18n.t("appTitle")).toBe("Configurações do GNB Twipper");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(Ao vivo: 3)");
 
     i18n.lang = "de";
-    expect(i18n.t("appTitle")).toBe("gnb-twipper Einstellungen");
+    expect(i18n.t("appTitle")).toBe("GNB Twipper Einstellungen");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(Live: 3)");
 
     i18n.lang = "fr";
-    expect(i18n.t("appTitle")).toBe("Paramètres de gnb-twipper");
+    expect(i18n.t("appTitle")).toBe("Paramètres de GNB Twipper");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(En direct : 3)");
 
     i18n.lang = "zh-TW";
-    expect(i18n.t("appTitle")).toBe("gnb-twipper 設定");
+    expect(i18n.t("appTitle")).toBe("GNB Twipper 設定");
     expect(i18n.t("liveCount", { count: 3 })).toBe("(直播中: 3)");
 
     // 存在しないキーの場合はキー名がそのまま返されること

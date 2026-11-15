@@ -132,7 +132,7 @@
         <path fill="none" stroke="#882dfd" stroke-width="33.6" d="m 217.46,326.24 a 88.1,90.4 0 0 1 -81.4,-55.8 88.1,90.4 0 0 1 19.1,-98.5 88.1,90.4 0 0 1 96,-19.6 88.1,90.4 0 0 1 54.4,83.5" />
         <path fill="#882dfd" d="m 205.07,254.57 -0.31,128.34 66.96,-51.84 0.44,51.67 73.83,-66.7 -74.41,-62.44 -0.04,52.18 z" />
       </svg>
-      <span class="logo-text">gnb-twipper</span>
+      <span class="logo-text">GNB Twipper</span>
     </div>
     <button class="btn-icon" onclick={openOptions} title={i18n.t("detailSettings")}>
       <Settings size={16} />

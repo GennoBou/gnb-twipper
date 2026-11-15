@@ -68,6 +68,60 @@ export function insertTriggerRoot(
 }
 
 /**
+ * カスタム CSS のサニタイズ結果
+ */
+export interface CssSanitizeResult {
+  safeCss: string;
+  isValid: boolean;
+  warnings: string[];
+}
+
+/**
+ * ユーザー指定のカスタム CSS を検証・無害化する
+ * - </style> などのタグ脱出シーケンスを安全に無害化
+ * - @import による外部スタイルシート読み込みを遮断
+ * - url() による外部リソース通信（http:, https:, //）を遮断
+ * - expression / javascript: などの危険なスクリプト構文を排除
+ */
+export function sanitizeCustomCss(rawCss: string): CssSanitizeResult {
+  if (!rawCss) {
+    return { safeCss: '', isValid: true, warnings: [] };
+  }
+
+  const warnings: string[] = [];
+
+  // 1. </style> などの終了タグによる HTML 脱出を防止
+  let cleaned = rawCss.replace(/<\/\s*style\s*>/gi, () => {
+    warnings.push('Stripped dangerous </style> tag from custom CSS');
+    return '/* stripped style close tag */';
+  });
+
+  // 2. @import ルールの検出と除去
+  if (/@import\s+/i.test(cleaned)) {
+    warnings.push('Blocked @import rule in custom CSS to prevent external stylesheet loading');
+    cleaned = cleaned.replace(/@import\s+[^;]+;?/gi, '/* blocked import */');
+  }
+
+  // 3. 外部 URL (http://, https://, //) への url(...) 参照の検出と除去
+  if (/url\s*\(\s*['"]?\s*(?:https?:|\/\/)/i.test(cleaned)) {
+    warnings.push('Blocked external url(...) reference in custom CSS to prevent data exfiltration');
+    cleaned = cleaned.replace(/url\s*\(\s*['"]?\s*(?:https?:|\/\/)[^)'"]*['"]?\s*\)/gi, '/* blocked external url */');
+  }
+
+  // 4. expression() や javascript: などのレガシー実行構文
+  if (/expression\s*\(|javascript\s*:/i.test(cleaned)) {
+    warnings.push('Blocked dynamic expression/javascript in custom CSS');
+    cleaned = cleaned.replace(/expression\s*\([^)]*\)|javascript\s*:[^;'"]*/gi, '/* blocked expression */');
+  }
+
+  return {
+    safeCss: cleaned,
+    isValid: warnings.length === 0,
+    warnings,
+  };
+}
+
+/**
  * ユーザー指定のカスタム CSS を <style id="gnb-twipper-custom-css"> として <head> に反映・更新する
  */
 export function applyCustomCss(
@@ -79,13 +133,17 @@ export function applyCustomCss(
   if (!doc || !doc.head) return currentStyleEl;
 
   if (enabled && customCss) {
+    const { safeCss, warnings } = sanitizeCustomCss(customCss);
+    if (warnings.length > 0) {
+      warnings.forEach((w) => console.warn(`[gnb-twipper] ${w}`));
+    }
     let styleEl = currentStyleEl;
     if (!styleEl || !doc.getElementById('gnb-twipper-custom-css')) {
       styleEl = doc.createElement('style');
       styleEl.id = 'gnb-twipper-custom-css';
       doc.head.appendChild(styleEl);
     }
-    styleEl.textContent = customCss;
+    styleEl.textContent = safeCss;
     return styleEl;
   } else if (currentStyleEl) {
     currentStyleEl.textContent = '';

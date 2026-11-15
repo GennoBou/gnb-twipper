@@ -35,6 +35,7 @@ export interface AppSettings {
 export interface AutoState {
   isActive: boolean;
   isStandby?: boolean;
+  isLockedByOtherTab?: boolean;
   timeRemainingSeconds: number;
   totalDurationSeconds: number;
   currentChannel: string;
@@ -110,7 +111,8 @@ export type ToBackgroundMessage =
   | { type: 'CHECK_USER_SCRIPTS_STATUS' }
   | { type: 'UPDATE_STREAMERS_FROM_DOM'; streamers: StreamInfo[] }
   | { type: 'DETECTED_SUB_ONLY_LOCK'; channel?: string }
-  | { type: 'DETECTED_OFFLINE'; channel?: string };
+  | { type: 'DETECTED_OFFLINE'; channel?: string }
+  | { type: 'SWITCH_PRIMARY_TAB' };
 
 /**
  * Background Service Worker からクライアントへのブロードキャストまたは指示メッセージ
@@ -147,6 +149,7 @@ export interface MessageResponseMap {
   GET_AUTO_STATE: { autoState: AutoState; settings: AppSettings; liveStreamers: StreamInfo[] };
   OPEN_OPTIONS: { success: boolean };
   UPDATE_STREAMERS_FROM_DOM: { success: boolean; count: number };
+  SWITCH_PRIMARY_TAB: { success: boolean; autoState: AutoState };
   AUTO_STATE_UPDATE: void;
   SCRAPE_LIVE_STREAMERS_REQUEST: void;
   NAVIGATE_TO_CHANNEL_REPLACE: { success: boolean; skipped?: boolean };

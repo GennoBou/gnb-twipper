@@ -48,7 +48,7 @@ export async function syncCustomUserScript(appSettings: AppSettings): Promise<{ 
           id: scriptId,
           matches: ['*://*.twitch.tv/*'],
           js: [{ code: appSettings.customJs }],
-          world: 'MAIN',
+          world: 'USER_SCRIPT',
           runAt: 'document_idle',
         },
       ]);

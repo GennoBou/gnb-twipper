@@ -124,6 +124,7 @@ describe('src/background/userScripts.ts', () => {
 
       const registeredScripts = mockRegister.mock.calls[0][0];
       expect(registeredScripts[0].id).toBe('gnb-twipper-custom-script');
+      expect(registeredScripts[0].world).toBe('USER_SCRIPT');
       expect(registeredScripts[0].js[0].code).toBe(sampleSettings.customJs);
     });
 

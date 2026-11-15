@@ -68,6 +68,43 @@ describe('src/content/dom-scraper.ts', () => {
       expect(links).toContain(link2);
       expect(links).not.toContain(recLink);
     });
+
+    it('フォロー中セクションが存在しない場合、「視聴者が視聴」および「Also Watch」セクション内のリンクが除外される', () => {
+      const sideNav = document.createElement('nav');
+      sideNav.setAttribute('data-a-target', 'side-nav-bar');
+
+      const liveSection = document.createElement('div');
+      liveSection.setAttribute('aria-label', 'ライブ配信中のチャンネル');
+      const liveLink = document.createElement('a');
+      liveLink.href = '/live_user';
+      liveSection.appendChild(liveLink);
+      sideNav.appendChild(liveSection);
+
+      const viewersAlsoWatchJa = document.createElement('div');
+      viewersAlsoWatchJa.setAttribute('aria-label', 'しんじさん (shinjifromjapanxd)さんの視聴者が視聴');
+      const jaLink1 = document.createElement('a');
+      jaLink1.href = '/cr_vanilla';
+      const jaLink2 = document.createElement('a');
+      jaLink2.href = '/yamatonjp';
+      const jaLink3 = document.createElement('a');
+      jaLink3.href = '/sipskino';
+      viewersAlsoWatchJa.appendChild(jaLink1);
+      viewersAlsoWatchJa.appendChild(jaLink2);
+      viewersAlsoWatchJa.appendChild(jaLink3);
+      sideNav.appendChild(viewersAlsoWatchJa);
+
+      const viewersAlsoWatchEn = document.createElement('div');
+      viewersAlsoWatchEn.setAttribute('aria-label', 'Viewers Also Watch');
+      const enLink = document.createElement('a');
+      enLink.href = '/en_recommended';
+      viewersAlsoWatchEn.appendChild(enLink);
+      sideNav.appendChild(viewersAlsoWatchEn);
+
+      document.body.appendChild(sideNav);
+
+      const links = getFollowedCardLinks(sideNav);
+      expect(links).toEqual([]);
+    });
   });
 
   describe('scrapeLiveStreamersFromDOM', () => {
@@ -107,6 +144,30 @@ describe('src/content/dom-scraper.ts', () => {
       expect(streamers.length).toBe(1);
       expect(streamers[0].user_login).toBe('streamer_one');
       expect(streamers[0].user_name).toBe('配信者1');
+    });
+
+    it('未ログイン状態のログインボタン（[data-a-target="login-button"]）が存在する場合は空配列を返す', () => {
+      const loginBtn = document.createElement('button');
+      loginBtn.setAttribute('data-a-target', 'login-button');
+      document.body.appendChild(loginBtn);
+
+      const sideNav = document.createElement('nav');
+      sideNav.setAttribute('data-a-target', 'side-nav-bar');
+
+      const section = document.createElement('div');
+      section.setAttribute('aria-label', 'しんじさん (shinjifromjapanxd)さんの視聴者が視聴');
+      const a = document.createElement('a');
+      a.href = '/yamatonjp';
+      const title = document.createElement('span');
+      title.setAttribute('data-a-target', 'side-nav-title');
+      title.textContent = 'yamatonjp';
+      a.appendChild(title);
+      section.appendChild(a);
+      sideNav.appendChild(section);
+      document.body.appendChild(sideNav);
+
+      const streamers = scrapeLiveStreamersFromDOM(document);
+      expect(streamers).toEqual([]);
     });
   });
 });

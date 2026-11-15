@@ -1,6 +1,6 @@
 import type { StreamInfo } from '../types';
 import { parseStreamerFromLink } from './streamer-parser';
-import { SIDE_NAV_SELECTORS, FOLLOWED_SECTION_SELECTORS } from './selectors';
+import { NAV_SELECTORS, SIDE_NAV_SELECTORS, FOLLOWED_SECTION_SELECTORS } from './selectors';
 
 /**
  * Twitch ページの左側サイドナビゲーション要素を特定する（右側のチャット欄等は厳密に除外）
@@ -8,10 +8,9 @@ import { SIDE_NAV_SELECTORS, FOLLOWED_SECTION_SELECTORS } from './selectors';
 export function findLeftSideNav(doc: Document = document): Element | null {
   if (!doc) return null;
 
-  let leftNav =
-    doc.querySelector(SIDE_NAV_SELECTORS.SIDE_NAV_BAR) ||
-    doc.querySelector(SIDE_NAV_SELECTORS.ARIA_LEFT_NAV_JA) ||
-    doc.querySelector(SIDE_NAV_SELECTORS.ARIA_LEFT_NAV_EN);
+  // 単一のグループセレクタに統合して DOM クエリ回数を最小化
+  const primarySelectors = `${SIDE_NAV_SELECTORS.SIDE_NAV_BAR}, ${SIDE_NAV_SELECTORS.ARIA_LEFT_NAV_JA}, ${SIDE_NAV_SELECTORS.ARIA_LEFT_NAV_EN}`;
+  let leftNav = doc.querySelector(primarySelectors);
 
   if (!leftNav) {
     const candidateNavs = Array.from(
@@ -38,13 +37,12 @@ export function findLeftSideNav(doc: Document = document): Element | null {
 export function getFollowedCardLinks(leftNav: Element): HTMLAnchorElement[] {
   if (!leftNav) return [];
 
-  // フォロー中セクションのマッチャーから一致するコンテナを検索
-  for (const selector of FOLLOWED_SECTION_SELECTORS.MATCHERS) {
-    const followedSection = leftNav.querySelector(selector);
-    if (followedSection) {
-      console.log('[gnb-twipper] Found EXACT followedSection container:', followedSection.getAttribute('aria-label') || selector);
-      return Array.from(followedSection.querySelectorAll<HTMLAnchorElement>('a[href]'));
-    }
+  // フォロー中セクションのマッチャーを単一のセレクタに統合して DOM 探索を O(1) に最適化
+  const combinedFollowedSelector = FOLLOWED_SECTION_SELECTORS.MATCHERS.join(', ');
+  const followedSection = leftNav.querySelector(combinedFollowedSelector);
+  if (followedSection) {
+    console.log('[gnb-twipper] Found EXACT followedSection container:', followedSection.getAttribute('aria-label') || combinedFollowedSelector);
+    return Array.from(followedSection.querySelectorAll<HTMLAnchorElement>('a[href]'));
   }
 
   console.log('[gnb-twipper] followedSection container not matched, filtering by non-followed sections');
@@ -67,6 +65,13 @@ export function getFollowedCardLinks(leftNav: Element): HTMLAnchorElement[] {
  * DOM からフォロー中ライブ配信者一覧を取得し、O(N) で重複排除して返す
  */
 export function scrapeLiveStreamersFromDOM(doc: Document = document): StreamInfo[] {
+  if (!doc) return [];
+
+  if (doc.querySelector(NAV_SELECTORS.LOGIN_BUTTON)) {
+    console.log('[gnb-twipper] User is not logged in (login-button detected). Returning 0 streamers.');
+    return [];
+  }
+
   const leftNav = findLeftSideNav(doc);
   if (!leftNav) {
     console.warn('[gnb-twipper] Left SideNav container not found on page');

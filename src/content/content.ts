@@ -71,7 +71,9 @@ function remountTriggerComponent() {
   if (triggerComponent) {
     try {
       unmount(triggerComponent);
-    } catch (e) {}
+    } catch (e) {
+      console.debug('[gnb-twipper] Failed to unmount previous triggerComponent:', e);
+    }
     triggerComponent = null;
   }
   root.replaceChildren();
@@ -97,6 +99,18 @@ function remountTriggerComponent() {
       },
       onOpenOptions: () => {
         safeSendMessage({ type: 'OPEN_OPTIONS' });
+      },
+      onSwitchToThisTab: () => {
+        const ch = getCurrentChannelPath();
+        if (ch) {
+          currentAutoState.currentChannel = ch;
+        }
+        safeSendMessage({ type: 'SWITCH_PRIMARY_TAB' }, (res) => {
+          if (res && res.autoState) {
+            currentAutoState = res.autoState;
+            remountTriggerComponent();
+          }
+        });
       },
     },
   });
@@ -257,6 +271,7 @@ const playerMonitor = new PlayerMonitor({
 if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
   window.setInterval(() => {
     try {
+      if (currentAutoState.isLockedByOtherTab) return;
       playerMonitor.checkSubOnlyLock(document, window.location);
       playerMonitor.checkOfflineState(document, window.location);
     } catch (e) {

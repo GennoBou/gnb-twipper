@@ -121,6 +121,51 @@ describe('src/background/gql.ts', () => {
       expect(parseFollowedLiveGqlResponse([])).toBeNull();
       expect(parseFollowedLiveGqlResponse({})).toBeNull();
     });
+
+    it('edges 内に null や stream が存在しない（オフライン）ノードが混在していても安全に除外する', () => {
+      const mockData = [
+        {
+          data: {
+            currentUser: {
+              id: 'user_123',
+              follows: {
+                edges: [
+                  null,
+                  { node: null },
+                  {
+                    node: {
+                      id: 'offline_streamer',
+                      login: 'offline_user',
+                      displayName: 'オフライン配信者',
+                      profileImageURL: '',
+                      stream: null, // オフライン
+                    },
+                  },
+                  {
+                    node: {
+                      id: 'live_streamer',
+                      login: 'live_user',
+                      displayName: 'ライブ配信者',
+                      profileImageURL: 'https://example.com/live.jpg',
+                      stream: {
+                        id: 'live_999',
+                        title: 'タイトル',
+                        viewersCount: 100,
+                        game: { name: 'Chatting' },
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      ];
+      const result = parseFollowedLiveGqlResponse(mockData);
+      expect(result).not.toBeNull();
+      expect(result).toHaveLength(1);
+      expect(result![0].user_login).toBe('live_user');
+    });
   });
 
   describe('checkSubOnlyAuthViaGql', () => {
@@ -198,6 +243,45 @@ describe('src/background/gql.ts', () => {
 
       const result = await checkSubOnlyAuthViaGql(['streamer_a'], 'client_id_123', null, null);
       expect(result).toEqual({});
+    });
+
+    it('JSON パースに失敗する無効なレスポンス本文の場合も安全にハンドリングして空オブジェクトを返す', async () => {
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.reject(new Error('Invalid JSON format')),
+        } as unknown as Response)
+      );
+
+      const result = await checkSubOnlyAuthViaGql(['streamer_a'], 'client_id_123', null, null);
+      expect(result).toEqual({});
+    });
+
+    it('レスポンス内の一部ストリーマーのデータが破損（data や streamPlaybackAccessToken が null）している場合も安全にスキップする', async () => {
+      const mockGqlResponse = [
+        null,
+        { data: null },
+        { data: { streamPlaybackAccessToken: null } },
+        {
+          data: {
+            streamPlaybackAccessToken: {
+              authorization: {
+                isForbidden: true,
+                forbiddenReasonCode: 'SUB_ONLY',
+              },
+            },
+          },
+        },
+      ];
+      globalThis.fetch = vi.fn(() =>
+        Promise.resolve(new Response(JSON.stringify(mockGqlResponse), { status: 200 }))
+      );
+
+      const streamers = ['corrupted_1', 'corrupted_2', 'corrupted_3', 'valid_sub_only'];
+      const result = await checkSubOnlyAuthViaGql(streamers, 'client_id_123', null, null);
+      expect(result).toEqual({
+        valid_sub_only: true,
+      });
     });
   });
 });
