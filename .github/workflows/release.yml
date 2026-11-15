@@ -112,7 +112,22 @@ jobs:
           export WEPUB_FIREFOX_ADDON_ID=$(echo -n "$WEPUB_FIREFOX_ADDON_ID" | tr -d '[:space:]')
           export WEPUB_FIREFOX_API_KEY=$(echo -n "$WEPUB_FIREFOX_API_KEY" | tr -d '[:space:]')
           export WEPUB_FIREFOX_API_SECRET=$(echo -n "$WEPUB_FIREFOX_API_SECRET" | tr -d '[:space:]')
-          wepub firefox --channel listed --source "source-code-${{ steps.meta.outputs.tag }}.zip" "firefox-extension-${{ steps.meta.outputs.tag }}.zip"
+          node -e '
+            const fs = require("fs");
+            const tag = "${{ steps.meta.outputs.tag }}".replace(/^v/, "");
+            const md = fs.readFileSync("CHANGELOG.md", "utf8");
+            const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const re = new RegExp(`^## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=^---\\s*$|^## \\[|(?![\\s\\S]))`, "m");
+            const match = md.match(re);
+            if (match && match[1].trim()) {
+              fs.writeFileSync("release-notes.md", match[1].trim() + "\n", "utf8");
+            }
+          '
+          NOTES_ARGS=()
+          if [[ -s release-notes.md ]]; then
+            NOTES_ARGS=(--release-notes-file release-notes.md)
+          fi
+          wepub firefox --channel listed "${NOTES_ARGS[@]}" --source "source-code-${{ steps.meta.outputs.tag }}.zip" "firefox-extension-${{ steps.meta.outputs.tag }}.zip"
 
       - name: Publish to Microsoft Edge Add-ons
         if: inputs.target_store == 'edge' || inputs.target_store == 'all'

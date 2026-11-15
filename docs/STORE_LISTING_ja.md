@@ -2,14 +2,14 @@
 
 # ストア掲載情報・申請用ドキュメント (日本語版)
 
-本ドキュメントは、Chrome Web Store、Firefox Add-ons (AMO)、および Opera Addons への申請時に使用する掲載テキスト、機能概要、説明文、権限申請理由の定義書です。
+本ドキュメントは、Chrome Web Store、Firefox Add-ons (AMO)、Opera Addons、および Microsoft Edge Add-ons への申請時に使用する掲載テキスト、機能概要、説明文、権限申請理由、審査担当者向けテスト手順の定義書です。
 
 ---
 
 ## 基本情報
 
 - **拡張機能名**: `GNB Twipper for Twitch`
-- **バージョン**: `1.0.0`
+- **バージョン**: `1.0.1`
 - **主要カテゴリ**: ソーシャル ネットワーク (Social & Communication)
 - **サブカテゴリ**: エンターテインメント (Entertainment)
 - **デフォルト言語**: 英語 (`en`)
@@ -17,6 +17,7 @@
 - **公式リポジトリ**: `https://github.com/GennoBou/gnb-twipper`
 - **ホームページURL**: `https://github.com/GennoBou/gnb-twipper`
 - **サポートURL**: `https://github.com/GennoBou/gnb-twipper/issues`
+- **プライバシーポリシーURL**: `https://github.com/GennoBou/gnb-twipper/blob/main/docs/PRIVACY_POLICY.md` （日本語版: `https://github.com/GennoBou/gnb-twipper/blob/main/docs/PRIVACY_POLICY_ja.md`）
 - **ライセンス**: `MIT License`
 
 ---
@@ -54,7 +55,6 @@ GNB Twipper for Twitch は、Twitchのフォロー中ライブ配信を効率的
 https://github.com/GennoBou/gnb-twipper
 ・バグ報告 / 機能要望:
 https://github.com/GennoBou/gnb-twipper/issues
-(作者は日本人ですが、翻訳ツールを通じて英語など他言語でのお問い合わせ・Issueも大歓迎です！)
 
 ----------------------------------------
 
@@ -115,17 +115,55 @@ https://github.com/GennoBou/gnb-twipper/issues
 
 ---
 
-## 📷 ストア申請用スクリーンショット画像要件
+## 4. Microsoft Edge Add-ons 掲載文
+
+> [!NOTE]
+> Microsoft Partner Center (Microsoft Edge Add-ons) の詳細説明欄は **250〜10,000文字のプレーンテキスト** に対応しています（MarkdownやHTMLは非対応）。また、短い説明はパッケージ内の `_locales/*/messages.json` (`appDesc`) から自動反映されます。
+
+### カテゴリ (Category / 単一カテゴリ選択)
+
+`Entertainment`（エンターテインメント）または `Social`（ソーシャル）
+
+### 短い説明 (Short Description / 132文字以内 / `_locales/ja/messages.json` より自動反映)
+
+`Twitchでフォローしているライブ配信を自動巡回する機能をTwitch.tvに追加します`
+
+### 詳細説明 (Detailed Description / 250〜10,000文字 / プレーンテキスト)
+
+(上記 1. Chrome Web Store 掲載文（プレーンテキスト形式）と同様)
+
+### 検索キーワード (Search Terms / 最大7個・各30文字以内・合計21単語以内)
+
+```text
+twitch
+自動巡回
+オートローテーション
+配信視聴
+twitch 拡張機能
+ながら見
+チャンネル切り替え
+```
+
+---
+
+## 📷 ストア申請用スクリーンショット・プロモーション画像要件
 
 公式ストア申請時にアップロードする画像仕様:
-- **必須解像度**: `1280x800` または `640x400`（アスペクト比 **16:10**）
+
+- **スクリーンショット必須解像度**: `1280x800` または `640x400` / `640x480`（最大5〜6枚）
 - **画像形式**: `PNG` または `JPEG`
 
 生成済みアセット構成 (`docs/images/`):
+
 - `screenshot01_store_ja.png` (メイン画面: 1280x800 日本語版バナーカード)
 - `screenshot02_store_ja.png` (設定画面: 1280x800 日本語版バナーカード)
 - `screenshot01_store_en.png` (メイン画面: 1280x800 英語版バナーカード)
 - `screenshot02_store_en.png` (設定画面: 1280x800 英語版バナーカード)
+- `edge_logo_300x300.png` (Microsoft Edge Add-ons ストアロゴ: 300x300 必須・推奨規格)
+- `edge_promo_440x280.png` (Edge Add-ons / Chrome Web Store 英語版小プロモーションタイル: 440x280)
+- `edge_promo_440x280_ja.png` (Edge Add-ons / Chrome Web Store 日本語版小プロモーションタイル: 440x280)
+- `edge_promo_1400x560.png` (Edge Add-ons 英語版大プロモーションタイル: 1400x560)
+- `edge_promo_1400x560_ja.png` (Edge Add-ons 日本語版大プロモーションタイル: 1400x560)
 - `opera_promo_300x188.png` (Opera Addons プロモーションタイル: 300x188 公式推奨規格)
 - `banner_base_1280x800.png` (他言語作成用: テキストなしベーステンプレート)
 
@@ -161,13 +199,56 @@ https://github.com/GennoBou/gnb-twipper/issues
 
 ---
 
-## 🔒 限定公開 (Unlisted) での公開設定手順
+## 🔒 限定公開 (Unlisted / Hidden) での公開設定手順
 
 ストア上で**限定公開（URLを知っている人のみアクセス可能・検索結果に非表示）**として登録する場合:
+
+### Chrome Web Store
 
 1. Chrome Developer Dashboard の画面左メニュー **「公開 (Distribution)」 -> 「公開範囲 (Visibility)」** を開きます。
 2. **「限定公開 (Unlisted)」** を選択します。
 3. これにより、ストア検索一覧には掲載されず、直接URLを知っているユーザーだけがインストール可能な状態で安全に公開できます。
+
+### Microsoft Edge Add-ons
+
+1. Microsoft Partner Center の対象拡張機能ページから **「Availability (利用可能状況)」 -> 「Visibility (表示設定)」** を開きます。
+2. **「Hidden (ストアでこの製品を非表示にする / ダイレクトリンクのみでアクセス可能)」** を選択します。
+3. これにより、Edge Add-ons の検索一覧には表示されず、直接のストアURLを知っているユーザーのみがインストール可能になります。
+
+---
+
+## 🧪 審査担当者向けテスト手順・認定ノート (Notes for certification)
+
+Microsoft Edge Add-ons（および Chrome Web Store / Firefox AMO）の審査提出時、**Notes for certification** 欄に以下の英文テンプレートをそのまま貼り付けてください。
+
+### 提出用英文テンプレート
+
+```text
+Extension Overview:
+GNB Twipper for Twitch injects a minimalist control bar next to the search bar on Twitch (https://www.twitch.tv/) and provides a browser action popup and options page so users can automatically rotate through live channels they follow.
+
+How to Test:
+1. Install the extension and open https://www.twitch.tv/.
+2. Observe the injected GNB Twipper control bar next to the top search bar (or click the extension toolbar icon to open the popup).
+3. To test live stream rotation, sign in with any standard Twitch account that follows at least 2 currently live channels, then click the "AUTO" button or the "Skip" button in the control bar/popup. The extension fetches live status via Twitch's official GraphQL API (or falls back to the sidebar DOM) and navigates smoothly between live followed streams without cluttering browser history.
+4. Even without signing in to a Twitch account, you can verify the injected header control bar on Twitch.tv, open the toolbar popup, and open the Options page to configure rotation intervals, excluded channels, display language, and optional custom CSS.
+
+Notes on Credentials & Permissions:
+- No dedicated test account is provided because the extension works with any standard user Twitch account and stores all settings strictly locally in browser storage without any external backend server or third-party tracking.
+- The optional "userScripts" permission is only used for advanced users who explicitly configure custom JavaScript for Twitch.tv and enable "Allow user scripts" in the browser's extension details page. Core rotation features work completely without enabling user scripts.
+```
+
+### 参考日本語訳（内容確認用）
+
+- **概要**: Twitch.tv 上の検索バー横に操作バーを注入し、ツールバーポップアップおよびオプション画面を通じてフォロー中ライブ配信の自動巡回機能を提供します。
+- **テスト手順**:
+  1. 拡張機能をインストールして `https://www.twitch.tv/` を開きます。
+  2. 上部検索バー横に注入された操作バー（またはツールバーの拡張機能ポップアップ）を確認します。
+  3. ライブ配信中のチャンネルを2つ以上フォローしている任意のTwitchアカウントでログインし、`AUTO` または `スキップ` をクリックすると、GQL API（またはサイドバーDOMフォールバック）で配信状態を取得し、閲覧履歴を汚さずに次の配信へ切り替わります。
+  4. ログインしていない状態でも、Twitch.tv 上のヘッダーUI表示、ポップアップ開閉、オプション画面での巡回間隔・除外リスト・表示言語・カスタムCSS設定の保存をテストできます。
+- **認証情報および権限に関する補足**:
+  - 通常の個人Twitchアカウントで動作し、外部サーバーやサードパーティトラッキングを持たず全設定をローカル保存するため、専用テストアカウントは不要です。
+  - `userScripts` 権限は拡張機能詳細ページで「ユーザースクリプトを許可する」を有効にした上級者の任意機能でのみ使用され、通常の自動巡回機能には不要です。
 
 ---
 
@@ -181,7 +262,6 @@ https://github.com/GennoBou/gnb-twipper/issues
 | :--- | :--- |
 | `storage` | ユーザーの設定（巡回間隔、除外チャンネル一覧など）をブラウザ内にローカル保存するため。 |
 | `alarms` | CPU負荷をかけずに高精度な自動巡回タイマー処理を実行するため。 |
-| `scripting` | ユーザーが設定した表示スタイル調整コード（カスタムCSS）を `twitch.tv` ページ内に適用するため。 |
 | `userScripts` | ユーザーが設定したカスタム JavaScript ロジックをブラウザのセキュリティ規格に準拠して安全に実行するため。 |
 | `cookies` | タブ切り替え時やセッション修復時にTwitchログイン状態を維持するため。 |
 | `tabs` | 自動巡回の切り替え操作、およびチャット・プレイヤーの連携制御のため。 |

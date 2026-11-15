@@ -2,7 +2,7 @@
 
 # Privacy Policy for GNB Twipper
 
-**Last Updated**: August 9, 2026
+**Last Updated**: November 15, 2026
 
 **GNB Twipper** ("the Extension") values your privacy. This Privacy Policy explains how your information is handled when you use the Extension.
 
@@ -26,11 +26,13 @@
 ## 3. Permissions Used
 
 The Extension requests permissions only to provide core functionality:
-- `storage`: To save user preferences locally.
-- `alarms`: To handle timing for stream rotation.
-- `scripting`: To apply user-configured custom CSS/JS onto Twitch pages.
-- `activeTab` & `tabs`: To enable seamless switching between streams.
-- `cookies`: To maintain your active Twitch session.
+- `storage`: To save user preferences (such as rotation intervals and excluded channel lists) locally in the browser.
+- `alarms`: To handle timing for stream rotation with minimal CPU overhead.
+- `userScripts`: To safely execute user-defined custom JavaScript in compliance with browser security standards.
+- `tabs`: To enable seamless switching between streams and manage player/chat integration.
+- `cookies`: To maintain your active Twitch login session across tab switches and session recovery.
+- `webRequest`: To automatically detect valid Twitch Client-ID headers from GraphQL requests and ensure stable live stream retrieval.
+- Host permissions (`https://www.twitch.tv/*`, `https://gql.twitch.tv/*`): To communicate with the Twitch web UI and official GraphQL API to retrieve live status for followed channels.
 
 ---
 

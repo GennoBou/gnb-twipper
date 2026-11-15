@@ -4,66 +4,60 @@ All notable changes to **GNB Twipper for Twitch** will be documented in this fil
 
 ---
 
+## [1.0.2] - 2026-11-16
+
+### 日本語 (Japanese)
+
+- **権限の整理**: 使用していなかった `scripting` 権限を削除し、必要最小限の権限で動作するよう改善しました。
+
+### English
+
+- **Permissions Cleanup**: Removed the unused `scripting` permission so the extension requests only the minimum required permissions.
+
+---
+
 ## [1.0.1] - 2026-11-15
 
 ### 日本語 (Japanese)
 
-#### ✨ 改善・新機能
-- **マルチタブ制御（プライマリタブ機能）**: 複数の Twitch タブを開いている際、オート巡回を単一のプライマリタブにロックし、他タブからの誤スキップや干渉を防止しました。他タブでは「GNB [他タブでAuto中] ▾」と表示され、メニュー内の「このタブに操作を切り替える」ボタンから操作対象を切り替えられます。また、プライマリタブを閉じるか Twitch 外へ遷移した場合はオート巡回を安全に停止します。
-- **UI 表記の統一**: 拡張機能マニフェスト、ポップアップ、設定画面、操作バー、および全7言語のロケールファイルにおける名称表記を `GNB Twipper` に統一しました。
-- **ストア対応・自動化基盤の刷新**:
-  - `README.md` / `README_ja.md` に公開済みの Chrome ウェブストア、Microsoft Edge Add-ons、および Firefox Add-ons (AMO) の公式リンクを掲載しました。
-  - GitHub Actions リリースワークフローを `iorate/wepub` へ移行し、Chrome Web Store (API v2)、Firefox Add-ons (API v5)、および Microsoft Edge Add-ons (API v1.1) への自動公開に対応しました。
-  - ビルドスクリプト (`scripts/package-zip.js`) で Firefox (AMO) 審査提出用のソースコードアーカイブ (`source-code-vX.X.X.zip`) も自動生成するよう拡張しました。
-
-#### 🐛 不具合修正
-- チャンネル切り替え処理 (`rotateToNextChannel`) の再入による二重スキップ、および非アクティブ状態でのタイマー起動を防止しました。
-- 巡回間隔 (`rotationTimeMinutes`) の正規化処理を追加し、不正な設定値による1秒間隔の無限リロードループを防止しました。
-- Twitch 未ログイン状態（`auth-token` Cookie 不在またはログインボタン検出時）における不要な GQL 通信・DOM スクレイピングを抑制しました。
-- 左サイドバーの除外対象に「視聴者が視聴 (`Also Watch`)」セクションを追加し、フォロー中以外のチャンネルが巡回対象へ混入する問題を修正しました。
-- `chrome.userScripts` API 未対応環境でのプロパティアクセスを保護し、ステータス応答型を整合させました。
-
-#### 🔒 セキュリティ・パフォーマンス
-- Twitch ドメイン判定の厳格化およびチャンネル遷移時の URL / チャンネル名サニタイズを強化しました。
-- カスタム CSS 機能にサニタイズ処理を追加し、`</style>` タグ脱出、`@import`、外部 `url()`、`expression()` / `javascript:` 構文を遮断・無害化しました。
-- カスタム JS の実行環境を `MAIN` ワールドから分離された `USER_SCRIPT` ワールドへ変更しました。
-- 配信者検索への `Map` キャッシュ導入や DOM セレクタ統合により、バックグラウンド処理およびスクレイピングの負荷を最適化しました。
+- **複数タブでの動作改善**: 複数の Twitch タブを開いている際、オート巡回が1つのタブのみで安全に動作するよう改善しました。別タブの「GNB」メニューから操作対象タブをワンクリックで切り替えられます。
+- **表記の統一**: 拡張機能内の名称表記を「GNB Twipper」に統一しました。
+- **不具合修正**:
+  - チャンネル切り替え時のタイミングによって、2回連続でスキップされてしまうことがある問題を修正しました。
+  - Twitch 未ログイン時や左サイドバーの「視聴者が視聴」欄から、フォローしていないチャンネルが巡回対象に混ざることがある問題を修正しました。
+  - 巡回タイマーの設定値チェックを強化し、意図しない連続リロードが発生する問題を防止しました。
+- **セキュリティ・動作の改善**:
+  - カスタム CSS / JS 機能の安全性と全体の動作パフォーマンスを向上させました。
 
 ### English
 
-#### ✨ Improvements
-- **Multi-Tab Control (Primary Tab Locking)**: When multiple Twitch tabs are open, active auto-rotation is now locked to a single primary tab to prevent interference or unintended skips from other tabs. Inactive tabs show a `GNB [Auto in other tab] ▾` indicator with a one-click **"Switch control to this tab"** action. Closing the primary tab or navigating away from Twitch safely stops auto-rotation.
-- **UI Branding Consistency**: Unified the extension display name to `GNB Twipper` across the manifest, popup, options page, header trigger, and all 7 locale files.
-- **Store Listings & Release Automation**:
-  - Added official Chrome Web Store, Microsoft Edge Add-ons, and Firefox Add-ons (AMO) installation links to `README.md` and `README_ja.md`.
-  - Migrated the GitHub Actions release workflow to `iorate/wepub`, adding support for Chrome Web Store (API v2), Firefox Add-ons (API v5), and Microsoft Edge Add-ons (API v1.1).
-  - Extended `scripts/package-zip.js` to also generate `source-code-vX.X.X.zip` for Firefox (AMO) review submissions.
-
-#### 🐛 Bug Fixes
-- Prevented re-entrant double-skips in `rotateToNextChannel` and unintended timer starts while auto mode is inactive.
-- Normalized `rotationTimeMinutes` values to prevent a 1-second infinite reload loop on invalid timer configurations.
-- Skipped GQL requests and DOM scraping when logged out (missing `auth-token` cookie or detected login button).
-- Excluded the "Viewers Also Watch" sidebar section from DOM scraping so unfollowed recommendations are not mixed into rotation targets.
-- Guarded `chrome.userScripts` property access and aligned status response types on unsupported environments.
-
-#### 🔒 Security & Performance
-- Enforced strict `twitch.tv` domain checks and strengthened channel name sanitization before tab navigation.
-- Added `sanitizeCustomCss` to strip `</style>` breakouts, `@import` rules, external `url()` references, and `expression()` / `javascript:` patterns.
-- Isolated custom user script execution from `MAIN` world to `USER_SCRIPT` world.
-- Reduced background and DOM scraping overhead via `Map`-based streamer lookups and consolidated DOM selectors.
+- **Multi-Tab Control**: Improved auto-rotation when multiple Twitch tabs are open by locking active rotation to a single tab, with a one-click option to switch control to another tab.
+- **UI Consistency**: Unified the extension display name to "GNB Twipper" across all views and languages.
+- **Bug Fixes**:
+  - Fixed an issue where channel rotation could occasionally skip twice in a row.
+  - Prevented unfollowed channels (such as from the "Viewers Also Watch" sidebar section or when logged out) from being included in rotation.
+  - Improved rotation timer validation to prevent unintended reload loops.
+- **Security & Performance**:
+  - Enhanced safety for Custom CSS / JS features and optimized overall background performance.
 
 ---
 
 ## [1.0.0] - 2026-10-09
 
 ### 日本語 (Japanese)
-- **初回正式リリース**: Chrome ウェブストアおよび Firefox Add-ons (AMO) 向けに公開。
-- **自動巡回・スマート待機**: GQL / DOM ハイブリッド取得によるライブ配信者一覧取得、累積視聴時間に基づく均等ローテーション、1人以下の自動待機モード。
-- **快適視聴機能**: サブスクライバー限定配信の自動スキップ（無料プレビュー継続視聴対応）、除外チャンネル管理、`location.replace` による履歴非汚染遷移。
-- **統合 UI & 多言語対応**: Twitch ヘッダー統合操作バー、ツールバーポップアップ、詳細設定画面、7言語対応（日本語・英語・スペイン語・ポルトガル語・ドイツ語・フランス語・繁体字中国語）、カスタム CSS / JS インジェクション。
+
+- **初回正式リリース**:
+  - フォロー中のライブ配信チャンネルを一定時間ごとに自動巡回するオートモード機能。
+  - 累積視聴時間が少ない配信者を優先する均等ローテーションと、配信者が1人以下の場合の自動待機機能。
+  - 未加入のサブスクライバー限定配信の自動スキップ（無料プレビュー期間中の継続視聴に対応）。
+  - 巡回対象から特定のチャンネルを除外できる除外リスト機能。
+  - Twitch 画面上部の専用操作バー、ツールバーポップアップ、7言語対応の設定画面、および上級者向けカスタム CSS / JS 機能。
 
 ### English
-- **Initial Official Release**: Published for Chrome Web Store and Firefox Add-ons (AMO).
-- **Auto-Rotation & Smart Standby**: Hybrid GQL / DOM live channel fetching, fair rotation prioritized by least watch time, and automatic standby when 1 or 0 streamers are live.
-- **Viewing Experience**: Automatic skipping of unsubscribed sub-only streams (with optional free-preview watching), channel exclusion list, and history-clean `location.replace` navigation.
-- **Integrated UI & Localization**: Embedded Twitch header control bar, toolbar popup, options page, 7 supported languages, and optional Custom CSS / JS injection.
+
+- **Initial Official Release**:
+  - Auto-rotation mode that cycles through followed live channels at a configurable interval.
+  - Fair rotation prioritizing streamers with less watch time, plus automatic standby when 1 or 0 channels are live.
+  - Automatic skipping of unsubscribed subscriber-only streams (with optional viewing during free previews).
+  - Channel exclusion list to keep specific channels out of rotation.
+  - Embedded Twitch header control bar, toolbar popup, options page supporting 7 languages, and optional Custom CSS / JS injection.
