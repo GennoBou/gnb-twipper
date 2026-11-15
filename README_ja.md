@@ -61,11 +61,18 @@ Twitch の画面上部（検索バーの横）にコンパクトな操作バー�
 
 ## 📥 インストール方法
 
-> **対応ブラウザ**: Google Chrome、Microsoft Edge、Brave、Opera、Vivaldi などの Chromium 系ブラウザ
+> **対応ブラウザ**: Google Chrome、Microsoft Edge、Mozilla Firefox、Brave、Opera、Vivaldi 等
 
-### Chrome ウェブストア（準備中）
+### 公式ストアからインストール（推奨）
 
-ストア公開後はワンクリックでインストールできるようになります。
+お使いのブラウザに対応したストアページから、ワンクリックで簡単にインストールできます。
+
+- **Chrome ウェブストア** (Google Chrome / Brave / Opera / Vivaldi):  
+  [GNB Twipper for Twitch - Chrome Web Store](https://chromewebstore.google.com/detail/gnb-twipper-for-twitch/hdnejkdhkppofpinlnloidcollpcjdfl)
+- **Microsoft Edge Add-ons** (Microsoft Edge):  
+  [GNB Twipper for Twitch - Microsoft Edge Addons](https://microsoftedge.microsoft.com/addons/detail/gnb-twipper-for-twitch/kemkggohfjggmdggfhiejfacgagikdla)
+- **Firefox Add-ons (AMO)** (Mozilla Firefox):  
+  [GNB Twipper for Twitch – Firefox (ja) 向け拡張機能](https://addons.mozilla.org/ja/firefox/addon/gnb-twipper/)
 
 ### ZIP ファイルから手動でインストールする場合
 

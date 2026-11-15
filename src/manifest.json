@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_appName__",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "__MSG_appDesc__",
   "icons": {
     "16": "icons/icon16.png",
@@ -38,7 +38,7 @@
   ],
   "action": {
     "default_popup": "src/popup/index.html",
-    "default_title": "gnb-twipper",
+    "default_title": "GNB Twipper",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",

@@ -5,6 +5,23 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      target_store:
+        description: 'Target store to publish (default: none)'
+        required: true
+        type: choice
+        default: 'none'
+        options:
+          - 'none'
+          - 'chrome'
+          - 'firefox'
+          - 'edge'
+          - 'all'
+      create_github_release:
+        description: 'Create or update GitHub Release when triggered manually'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build-and-release:
@@ -21,11 +38,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Setup wepub
+        uses: iorate/wepub/setup@v1
+
+      - name: Resolve release tag
+        id: meta
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+            echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run Svelte & TypeScript check
         run: npm run check
@@ -33,38 +63,68 @@ jobs:
       - name: Build extension bundle
         run: npm run build
 
-      - name: Package extension ZIPs (Chrome / Opera & Firefox)
+      - name: Package extension ZIPs (Chrome / Edge, Firefox & Source)
         run: node scripts/package-zip.js
 
       - name: Create GitHub Release
         id: create_release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.create_github_release == true
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Release ${{ steps.meta.outputs.tag }}
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            chrome-extension-${{ github.ref_name }}.zip
-            firefox-extension-${{ github.ref_name }}.zip
+            chrome-extension-${{ steps.meta.outputs.tag }}.zip
+            firefox-extension-${{ steps.meta.outputs.tag }}.zip
+            source-code-${{ steps.meta.outputs.tag }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload to Chrome Web Store (Optional)
+      - name: Publish to Chrome Web Store
+        if: inputs.target_store == 'chrome' || inputs.target_store == 'all'
         env:
-          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
-          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
-          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
-          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-        if: env.CHROME_CLIENT_ID != '' && env.CHROME_EXTENSION_ID != ''
+          WEPUB_CHROME_PUBLISHER_ID: ${{ secrets.WEPUB_CHROME_PUBLISHER_ID || secrets.CHROME_PUBLISHER_ID }}
+          WEPUB_CHROME_ITEM_ID: ${{ secrets.WEPUB_CHROME_ITEM_ID || secrets.CHROME_EXTENSION_ID || 'hdnejkdhkppofpinlnloidcollpcjdfl' }}
+          WEPUB_CHROME_CLIENT_ID: ${{ secrets.WEPUB_CHROME_CLIENT_ID || secrets.CHROME_CLIENT_ID }}
+          WEPUB_CHROME_CLIENT_SECRET: ${{ secrets.WEPUB_CHROME_CLIENT_SECRET || secrets.CHROME_CLIENT_SECRET }}
+          WEPUB_CHROME_REFRESH_TOKEN: ${{ secrets.WEPUB_CHROME_REFRESH_TOKEN || secrets.CHROME_REFRESH_TOKEN }}
         run: |
-          npx chrome-webstore-upload-cli upload --source chrome-extension-${{ github.ref_name }}.zip --extension-id $CHROME_EXTENSION_ID --client-id $CHROME_CLIENT_ID --client-secret $CHROME_CLIENT_SECRET --refresh-token $CHROME_REFRESH_TOKEN
+          export WEPUB_CHROME_PUBLISHER_ID=$(echo -n "$WEPUB_CHROME_PUBLISHER_ID" | tr -d '[:space:]')
+          export WEPUB_CHROME_ITEM_ID=$(echo -n "$WEPUB_CHROME_ITEM_ID" | tr -d '[:space:]')
+          export WEPUB_CHROME_CLIENT_ID=$(echo -n "$WEPUB_CHROME_CLIENT_ID" | tr -d '[:space:]')
+          export WEPUB_CHROME_CLIENT_SECRET=$(echo -n "$WEPUB_CHROME_CLIENT_SECRET" | tr -d '[:space:]')
+          export WEPUB_CHROME_REFRESH_TOKEN=$(echo -n "$WEPUB_CHROME_REFRESH_TOKEN" | tr -d '[:space:]')
+          if [[ ! "$WEPUB_CHROME_PUBLISHER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::warning::WEPUB_CHROME_PUBLISHER_ID does not look like a 36-char UUID (length: ${#WEPUB_CHROME_PUBLISHER_ID})."
+          fi
+          wepub chrome "chrome-extension-${{ steps.meta.outputs.tag }}.zip"
 
-      - name: Sign & Upload to Firefox Add-ons (Optional)
+      - name: Publish to Firefox Add-ons
+        if: inputs.target_store == 'firefox' || inputs.target_store == 'all'
         env:
-          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
-          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
-        if: env.WEB_EXT_API_KEY != '' && env.WEB_EXT_API_SECRET != ''
+          WEPUB_FIREFOX_ADDON_ID: ${{ secrets.WEPUB_FIREFOX_ADDON_ID || 'gnb-twipper@gennobou.com' }}
+          WEPUB_FIREFOX_API_KEY: ${{ secrets.WEPUB_FIREFOX_API_KEY || secrets.WEB_EXT_API_KEY }}
+          WEPUB_FIREFOX_API_SECRET: ${{ secrets.WEPUB_FIREFOX_API_SECRET || secrets.WEB_EXT_API_SECRET }}
         run: |
-          npx web-ext sign --source-dir dist-firefox --api-key $WEB_EXT_API_KEY --api-secret $WEB_EXT_API_SECRET
+          export WEPUB_FIREFOX_ADDON_ID=$(echo -n "$WEPUB_FIREFOX_ADDON_ID" | tr -d '[:space:]')
+          export WEPUB_FIREFOX_API_KEY=$(echo -n "$WEPUB_FIREFOX_API_KEY" | tr -d '[:space:]')
+          export WEPUB_FIREFOX_API_SECRET=$(echo -n "$WEPUB_FIREFOX_API_SECRET" | tr -d '[:space:]')
+          wepub firefox --channel listed --source "source-code-${{ steps.meta.outputs.tag }}.zip" "firefox-extension-${{ steps.meta.outputs.tag }}.zip"
+
+      - name: Publish to Microsoft Edge Add-ons
+        if: inputs.target_store == 'edge' || inputs.target_store == 'all'
+        env:
+          WEPUB_EDGE_PRODUCT_ID: ${{ secrets.WEPUB_EDGE_PRODUCT_ID }}
+          WEPUB_EDGE_CLIENT_ID: ${{ secrets.WEPUB_EDGE_CLIENT_ID }}
+          WEPUB_EDGE_API_KEY: ${{ secrets.WEPUB_EDGE_API_KEY }}
+        run: |
+          export WEPUB_EDGE_PRODUCT_ID=$(echo -n "$WEPUB_EDGE_PRODUCT_ID" | tr -d '[:space:]')
+          export WEPUB_EDGE_CLIENT_ID=$(echo -n "$WEPUB_EDGE_CLIENT_ID" | tr -d '[:space:]')
+          export WEPUB_EDGE_API_KEY=$(echo -n "$WEPUB_EDGE_API_KEY" | tr -d '[:space:]')
+          if [[ ! "$WEPUB_EDGE_PRODUCT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
+            echo "::warning::WEPUB_EDGE_PRODUCT_ID does not look like a 36-char GUID/UUID (length: ${#WEPUB_EDGE_PRODUCT_ID}). Note: Edge API requires the Partner Center Product ID (GUID), not the 32-char Store CRX ID."
+          fi
+          wepub edge "chrome-extension-${{ steps.meta.outputs.tag }}.zip"

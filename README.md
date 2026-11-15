@@ -59,11 +59,18 @@ A sleek, compact control bar is embedded directly next to the Twitch search bar:
 
 ## 📥 Installation
 
-> **Supported Browsers**: Google Chrome, Microsoft Edge, Brave, Opera, Vivaldi, and other Chromium-based browsers.
+> **Supported Browsers**: Google Chrome, Microsoft Edge, Mozilla Firefox, Brave, Opera, Vivaldi, and other Chromium/Gecko-based browsers.
 
-### Chrome Web Store (Coming Soon)
+### Install from Official Stores (Recommended)
 
-One-click installation directly from the official store once published.
+Install directly with one click from your browser's official add-on store:
+
+- **Chrome Web Store** (Google Chrome / Brave / Opera / Vivaldi):  
+  [GNB Twipper for Twitch - Chrome Web Store](https://chromewebstore.google.com/detail/gnb-twipper-for-twitch/hdnejkdhkppofpinlnloidcollpcjdfl)
+- **Microsoft Edge Add-ons** (Microsoft Edge):  
+  [GNB Twipper for Twitch - Microsoft Edge Addons](https://microsoftedge.microsoft.com/addons/detail/gnb-twipper-for-twitch/kemkggohfjggmdggfhiejfacgagikdla)
+- **Firefox Add-ons (AMO)** (Mozilla Firefox):  
+  [GNB Twipper for Twitch – Firefox Add-ons](https://addons.mozilla.org/firefox/addon/gnb-twipper/)
 
 ### Manual Installation from ZIP
 
