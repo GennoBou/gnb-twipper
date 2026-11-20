@@ -1,6 +1,6 @@
 # Spécifications de la fiche du Store (Français)
 
-Ce document contient les métadonnées et descriptions officielles pour le Chrome Web Store, Firefox Add-ons (AMO) et Opera Addons en français.
+Ce document contient les métadonnées et descriptions officielles pour le Chrome Web Store, Firefox Add-ons (AMO), Opera Addons et Microsoft Edge Add-ons en français.
 
 ---
 
@@ -105,3 +105,34 @@ https://github.com/GennoBou/gnb-twipper/issues
 ### Description détaillée
 
 (Identique à la section 1. Fiche du Chrome Web Store ci-dessus au format texte brut)
+
+---
+
+## 4. Fiche Microsoft Edge Add-ons
+
+> [!NOTE]
+> Le champ de description détaillée de Microsoft Partner Center (Microsoft Edge Add-ons) accepte **uniquement du texte brut (de 250 à 10 000 caractères)** (Markdown et HTML ne sont pas pris en charge). La description courte est automatiquement importée depuis `_locales/fr/messages.json` (`appDesc`) dans le paquet d'extension.
+
+### Catégorie (Sélection unique)
+
+`Entertainment` (Divertissement) ou `Social` (Réseaux sociaux)
+
+### Description courte (Jusqu'à 132 caractères / Importée automatiquement depuis `_locales/fr/messages.json`)
+
+`Basculez et parcourez automatiquement les streams en direct que vous suivez sur Twitch.`
+
+### Description détaillée (Texte brut / 250–10 000 caractères)
+
+(Identique à la section 1. Fiche du Chrome Web Store ci-dessus au format texte brut)
+
+### Termes de recherche (Search Terms / Jusqu'à 7 termes, max. 30 caractères chacun, max. 21 mots au total)
+
+```text
+twitch
+rotation automatique
+stream rotator
+extension twitch
+stream en direct
+changement chaîne
+lecteur twitch
+```

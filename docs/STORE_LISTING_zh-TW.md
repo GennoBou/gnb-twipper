@@ -1,6 +1,6 @@
 # 商店資訊與說明規格書 (繁體中文)
 
-本文件包含適用於 Chrome Web Store、Firefox Add-ons (AMO) 與 Opera Addons 的繁體中文官方中繼資料與詳細說明。
+本文件包含適用於 Chrome Web Store、Firefox Add-ons (AMO)、Opera Addons 與 Microsoft Edge Add-ons 的繁體中文官方中繼資料與詳細說明。
 
 ---
 
@@ -105,3 +105,34 @@ https://github.com/GennoBou/gnb-twipper/issues
 ### 詳細說明
 
 (與上方第 1 節 Chrome Web Store 的純文字說明內容相同)
+
+---
+
+## 4. Microsoft Edge Add-ons 商店資訊
+
+> [!NOTE]
+> Microsoft Partner Center (Microsoft Edge Add-ons) 的詳細說明欄位**僅支援純文字（250 至 10,000 個字元）**（不支援 Markdown 與 HTML 語法）。簡短說明會自動由擴充功能套件內的 `_locales/zh_TW/messages.json` (`appDesc`) 帶入。
+
+### 類別 (Category / 單選)
+
+`Entertainment`（娛樂）或 `Social`（社交）
+
+### 簡短說明 (Short Description / 最多 132 個字元 / 自動由 `_locales/zh_TW/messages.json` 帶入)
+
+`在 Twitch 上自動輪播與瀏覽你所追隨的即時直播頻道。`
+
+### 詳細說明 (Detailed Description / 純文字 / 250–10,000 個字元)
+
+(與上方第 1 節 Chrome Web Store 的純文字說明內容相同)
+
+### 搜尋關鍵字 (Search Terms / 最多 7 組，每組最多 30 字元，總字數上限 21 個單詞)
+
+```text
+twitch
+自動輪播
+實況輪播
+twitch 擴充功能
+直播切換
+追隨頻道
+實況瀏覽
+```

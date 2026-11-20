@@ -1,6 +1,6 @@
 # Store-Eintragspezifikationen (Deutsch)
 
-Dieses Dokument enthält die offiziellen Metadaten und Beschreibungen für den Chrome Web Store, Firefox Add-ons (AMO) und Opera Addons auf Deutsch.
+Dieses Dokument enthält die offiziellen Metadaten und Beschreibungen für den Chrome Web Store, Firefox Add-ons (AMO), Opera Addons und Microsoft Edge Add-ons auf Deutsch.
 
 ---
 
@@ -105,3 +105,34 @@ https://github.com/GennoBou/gnb-twipper/issues
 ### Detaillierte Beschreibung
 
 (Identisch mit Abschnitt 1. Chrome Web Store Eintrag oben als reiner Text)
+
+---
+
+## 4. Microsoft Edge Add-ons Eintrag
+
+> [!NOTE]
+> Das Beschreibungsfeld im Microsoft Partner Center (Microsoft Edge Add-ons) unterstützt **nur reinen Text (250 bis 10.000 Zeichen)** (Markdown und HTML werden nicht unterstützt). Die Kurzbeschreibung wird automatisch aus `_locales/de/messages.json` (`appDesc`) im Erweiterungspaket übernommen.
+
+### Kategorie (Einzelauswahl)
+
+`Entertainment` (Unterhaltung) oder `Social` (Soziale Netzwerke)
+
+### Kurzbeschreibung (Bis zu 132 Zeichen / Automatisch aus `_locales/de/messages.json`)
+
+`Automatische Rotation durch die von Ihnen gefolgten Live-Streams auf Twitch.`
+
+### Detaillierte Beschreibung (Reiner Text / 250–10.000 Zeichen)
+
+(Identisch mit Abschnitt 1. Chrome Web Store Eintrag oben als reiner Text)
+
+### Suchbegriffe (Search Terms / Bis zu 7 Begriffe, max. 30 Zeichen pro Begriff, insgesamt max. 21 Wörter)
+
+```text
+twitch
+auto rotation
+stream rotator
+twitch erweiterung
+livestream
+kanalwechsel
+twitch viewer
+```
