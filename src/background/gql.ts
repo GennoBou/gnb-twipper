@@ -1,4 +1,5 @@
 import type { StreamInfo, GqlPlaybackAccessTokenResponseItem, GqlFollowedLiveResponseItem, GqlFollowEdge } from '../types';
+import { sanitizeProfileImageUrl } from '../utils/url';
 
 /**
  * フォロー中チャンネルのライブ配信一覧を取得するための Twitch GQL リクエストを送信する
@@ -94,7 +95,7 @@ export function parseFollowedLiveGqlResponse(data: unknown): StreamInfo[] | null
         user_name: node.displayName || node.login,
         title: stream.title || '',
         game_name: stream.game?.name || '',
-        profile_image_url: node.profileImageURL || '',
+        profile_image_url: sanitizeProfileImageUrl(node.profileImageURL),
         viewer_count: stream.viewersCount || 0,
       });
     }

@@ -159,7 +159,7 @@ describe('background.ts chrome.runtime.onMessage listener integration', () => {
         type: 'SAVE_SETTINGS',
         settings: { rotationTimeMinutes: 5, language: 'en' },
       },
-      {},
+      { url: 'chrome-extension://mock-id/src/options/index.html', tab: { id: 10, url: 'chrome-extension://mock-id/src/options/index.html' } },
       sendResponse
     );
 
@@ -173,6 +173,22 @@ describe('background.ts chrome.runtime.onMessage listener integration', () => {
         })
       );
     });
+  });
+
+  it('Twitch Content Script 等の非拡張ページからの SAVE_SETTINGS は拒否される', () => {
+    const sendResponse = vi.fn();
+    messageListener(
+      {
+        type: 'SAVE_SETTINGS',
+        settings: { customJs: 'alert(1)', customJsEnabled: true },
+      },
+      { url: 'https://www.twitch.tv/shroud', tab: { id: 101, url: 'https://www.twitch.tv/shroud' } },
+      sendResponse
+    );
+
+    expect(sendResponse).toHaveBeenCalledWith({ success: false, error: 'Unauthorized sender' });
+    expect(mockChrome.storage.local.set).not.toHaveBeenCalled();
+    expect(mockChrome.userScripts.register).not.toHaveBeenCalled();
   });
 
   it('未定義・未知のメッセージタイプの場合は success: false を返す', () => {
