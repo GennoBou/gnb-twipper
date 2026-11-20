@@ -782,6 +782,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     }
 
     case 'SAVE_SETTINGS': {
+      if (!isAuthorizedSettingsSender(sender)) {
+        console.warn('[gnb-twipper] Blocked SAVE_SETTINGS from unauthorized sender:', sender?.url || sender?.tab?.url);
+        sendResponse({ success: false, error: 'Unauthorized sender' });
+        break;
+      }
       const nextMinutes = normalizeRotationMinutes(
         message.settings.rotationTimeMinutes ?? settings.rotationTimeMinutes
       );
@@ -1019,6 +1024,24 @@ function isTwitchTabUrl(url?: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * SAVE_SETTINGS などの特権メッセージ送信元が自拡張機能のページ（Options / Popup）であることを検証する
+ * Content Script（Twitch 等の Web ページ）からの設定改ざんを防止する
+ */
+function isAuthorizedSettingsSender(sender?: chrome.runtime.MessageSender): boolean {
+  if (!sender) return false;
+  if (typeof chrome !== 'undefined' && chrome.runtime?.id && sender.id && sender.id !== chrome.runtime.id) {
+    return false;
+  }
+  const extOrigin = typeof chrome !== 'undefined' && chrome.runtime?.getURL ? chrome.runtime.getURL('') : '';
+  const senderUrl = sender.url || sender.tab?.url;
+  if (senderUrl) {
+    return Boolean(extOrigin) && senderUrl.startsWith(extOrigin);
+  }
+  // sender.url が未設定の場合、タブ経由（Content Script）は拒否し拡張内部（Popup/テスト等）のみ許可
+  return !sender.tab;
 }
 
 // Auto-start auto mode when Twitch tab is opened/loaded if autoStartOnLogin is enabled (initial load only)

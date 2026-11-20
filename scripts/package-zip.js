@@ -23,14 +23,14 @@ const sourceZipName = `source-code-v${version}.zip`;
 // 2. Chrome / Edge 向け ZIP の生成 (dist ディレクトリから)
 console.log(`\n[package-zip] Chrome / Edge 用 ZIP パッケージを生成中: ${chromeZipName}...`);
 execSync(
-  `npx web-ext build --source-dir dist --artifacts-dir . --filename "${chromeZipName}" --overwrite-dest`,
+  `npx --no-install web-ext build --source-dir dist --artifacts-dir . --filename "${chromeZipName}" --overwrite-dest`,
   { stdio: 'inherit', cwd: rootDir }
 );
 
 // 3. Firefox 向け ZIP の生成 (dist-firefox ディレクトリから)
 console.log(`\n[package-zip] Firefox 用 ZIP パッケージを生成中: ${firefoxZipName}...`);
 execSync(
-  `npx web-ext build --source-dir dist-firefox --artifacts-dir . --filename "${firefoxZipName}" --overwrite-dest`,
+  `npx --no-install web-ext build --source-dir dist-firefox --artifacts-dir . --filename "${firefoxZipName}" --overwrite-dest`,
   { stdio: 'inherit', cwd: rootDir }
 );
 

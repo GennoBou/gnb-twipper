@@ -33,10 +33,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: 'npm'
@@ -45,7 +45,7 @@ jobs:
         run: npm ci
 
       - name: Setup wepub
-        uses: iorate/wepub/setup@v1
+        uses: iorate/wepub/setup@fc99f54390af6bc8218d1eeda0a994198cd25831 # v1
 
       - name: Resolve release tag
         id: meta
@@ -69,7 +69,7 @@ jobs:
       - name: Create GitHub Release
         id: create_release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.create_github_release == true
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: Release ${{ steps.meta.outputs.tag }}
@@ -105,6 +105,7 @@ jobs:
       - name: Publish to Firefox Add-ons
         if: inputs.target_store == 'firefox' || inputs.target_store == 'all'
         env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           WEPUB_FIREFOX_ADDON_ID: ${{ secrets.WEPUB_FIREFOX_ADDON_ID || 'gnb-twipper@gennobou.com' }}
           WEPUB_FIREFOX_API_KEY: ${{ secrets.WEPUB_FIREFOX_API_KEY || secrets.WEB_EXT_API_KEY }}
           WEPUB_FIREFOX_API_SECRET: ${{ secrets.WEPUB_FIREFOX_API_SECRET || secrets.WEB_EXT_API_SECRET }}
@@ -114,7 +115,7 @@ jobs:
           export WEPUB_FIREFOX_API_SECRET=$(echo -n "$WEPUB_FIREFOX_API_SECRET" | tr -d '[:space:]')
           node -e '
             const fs = require("fs");
-            const tag = "${{ steps.meta.outputs.tag }}".replace(/^v/, "");
+            const tag = (process.env.RELEASE_TAG || "").replace(/^v/, "");
             const md = fs.readFileSync("CHANGELOG.md", "utf8");
             const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
             const re = new RegExp(`^## \\[${escaped}\\][^\\n]*\\n([\\s\\S]*?)(?=^---\\s*$|^## \\[|(?![\\s\\S]))`, "m");
@@ -127,7 +128,7 @@ jobs:
           if [[ -s release-notes.md ]]; then
             NOTES_ARGS=(--release-notes-file release-notes.md)
           fi
-          wepub firefox --channel listed "${NOTES_ARGS[@]}" --source "source-code-${{ steps.meta.outputs.tag }}.zip" "firefox-extension-${{ steps.meta.outputs.tag }}.zip"
+          wepub firefox --channel listed "${NOTES_ARGS[@]}" --source "source-code-${RELEASE_TAG}.zip" "firefox-extension-${RELEASE_TAG}.zip"
 
       - name: Publish to Microsoft Edge Add-ons
         if: inputs.target_store == 'edge' || inputs.target_store == 'all'

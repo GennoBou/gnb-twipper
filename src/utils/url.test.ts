@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractChannelFromUrl } from './url';
+import { extractChannelFromUrl, sanitizeProfileImageUrl } from './url';
 
 describe('extractChannelFromUrl', () => {
   it('should extract channel name from simple valid Twitch channel URLs', () => {
@@ -54,5 +54,22 @@ describe('extractChannelFromUrl', () => {
   it('should return null for invalid or empty URL strings', () => {
     expect(extractChannelFromUrl('')).toBeNull();
     expect(extractChannelFromUrl('not-a-url')).toBeNull();
+  });
+});
+
+describe('sanitizeProfileImageUrl', () => {
+  it('安全な HTTPS URL はそのまま返す', () => {
+    expect(sanitizeProfileImageUrl('https://static-cdn.jtvnw.net/jtv_user_pictures/avatar.png')).toBe(
+      'https://static-cdn.jtvnw.net/jtv_user_pictures/avatar.png'
+    );
+  });
+
+  it('http / javascript / data などの非 HTTPS スキームや不正 URL を空文字に無害化する', () => {
+    expect(sanitizeProfileImageUrl('http://example.com/avatar.png')).toBe('');
+    expect(sanitizeProfileImageUrl('javascript:alert(1)')).toBe('');
+    expect(sanitizeProfileImageUrl('data:image/svg+xml,<svg onload=alert(1)>')).toBe('');
+    expect(sanitizeProfileImageUrl('not-a-url')).toBe('');
+    expect(sanitizeProfileImageUrl('')).toBe('');
+    expect(sanitizeProfileImageUrl(null)).toBe('');
   });
 });

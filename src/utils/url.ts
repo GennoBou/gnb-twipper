@@ -13,3 +13,16 @@ export function extractChannelFromUrl(url: string): string | null {
   } catch (e) {}
   return null;
 }
+
+/**
+ * プロフィール画像 URL のスキームを検証し、安全な HTTPS URL のみ許可する
+ */
+export function sanitizeProfileImageUrl(rawUrl?: string | null): string {
+  if (!rawUrl) return '';
+  try {
+    const parsed = new URL(rawUrl.trim());
+    return parsed.protocol === 'https:' ? parsed.href : '';
+  } catch {
+    return '';
+  }
+}

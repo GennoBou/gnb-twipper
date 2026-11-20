@@ -1,4 +1,5 @@
 import type { StreamInfo } from '../types';
+import { sanitizeProfileImageUrl } from '../utils/url';
 
 /**
  * アクセシビリティ用ツールチップや矢印キー案内などの不要なテキストを除去・クリーンアップする
@@ -141,7 +142,7 @@ export function parseStreamerFromLink(a: HTMLAnchorElement): StreamInfo | null {
   }
 
   const imgEl = a.querySelector<HTMLImageElement>('img');
-  const profileImageUrl = imgEl?.src || '';
+  const profileImageUrl = sanitizeProfileImageUrl(imgEl?.getAttribute('src') || imgEl?.src);
 
   const userName = extractUserName(a, imgEl, userLogin);
 
