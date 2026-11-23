@@ -5,6 +5,7 @@ dist-firefox/
 *.zip
 .vite/
 *.tsbuildinfo
+.temp/
 
 # Tests & Logs
 coverage/
