@@ -49,9 +49,12 @@ jobs:
 
       - name: Resolve release tag
         id: meta
+        env:
+          RELEASE_REF: ${{ github.ref }}
+          RELEASE_REF_NAME: ${{ github.ref_name }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          if [[ "$RELEASE_REF" == refs/tags/v* ]]; then
+            echo "tag=${RELEASE_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
             VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
             echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
@@ -86,6 +89,7 @@ jobs:
       - name: Publish to Chrome Web Store
         if: inputs.target_store == 'chrome' || inputs.target_store == 'all'
         env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           WEPUB_CHROME_PUBLISHER_ID: ${{ secrets.WEPUB_CHROME_PUBLISHER_ID || secrets.CHROME_PUBLISHER_ID }}
           WEPUB_CHROME_ITEM_ID: ${{ secrets.WEPUB_CHROME_ITEM_ID || secrets.CHROME_EXTENSION_ID || 'hdnejkdhkppofpinlnloidcollpcjdfl' }}
           WEPUB_CHROME_CLIENT_ID: ${{ secrets.WEPUB_CHROME_CLIENT_ID || secrets.CHROME_CLIENT_ID }}
@@ -100,7 +104,7 @@ jobs:
           if [[ ! "$WEPUB_CHROME_PUBLISHER_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "::warning::WEPUB_CHROME_PUBLISHER_ID does not look like a 36-char UUID (length: ${#WEPUB_CHROME_PUBLISHER_ID})."
           fi
-          wepub chrome "chrome-extension-${{ steps.meta.outputs.tag }}.zip"
+          wepub chrome "chrome-extension-${RELEASE_TAG}.zip"
 
       - name: Publish to Firefox Add-ons
         if: inputs.target_store == 'firefox' || inputs.target_store == 'all'
@@ -133,6 +137,7 @@ jobs:
       - name: Publish to Microsoft Edge Add-ons
         if: inputs.target_store == 'edge' || inputs.target_store == 'all'
         env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
           WEPUB_EDGE_PRODUCT_ID: ${{ secrets.WEPUB_EDGE_PRODUCT_ID }}
           WEPUB_EDGE_CLIENT_ID: ${{ secrets.WEPUB_EDGE_CLIENT_ID }}
           WEPUB_EDGE_API_KEY: ${{ secrets.WEPUB_EDGE_API_KEY }}
@@ -143,4 +148,4 @@ jobs:
           if [[ ! "$WEPUB_EDGE_PRODUCT_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "::warning::WEPUB_EDGE_PRODUCT_ID does not look like a 36-char GUID/UUID (length: ${#WEPUB_EDGE_PRODUCT_ID}). Note: Edge API requires the Partner Center Product ID (GUID), not the 32-char Store CRX ID."
           fi
-          wepub edge "chrome-extension-${{ steps.meta.outputs.tag }}.zip"
+          wepub edge "chrome-extension-${RELEASE_TAG}.zip"
